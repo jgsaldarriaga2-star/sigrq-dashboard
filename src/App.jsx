@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import LoginPage from "./pages/LoginPage";
+import RegistroPage from "./pages/RegistroPage";
+import LandingPage from "./pages/LandingPage";
 import DashboardPage from "./pages/DashboardPage";
 import NuevaSustanciaPage from "./pages/NuevaSustanciaPage";
 import InventarioPage from "./pages/InventarioPage";
@@ -29,7 +31,9 @@ function AppRoutes() {
   const { user } = useAuth();
   return (
     <Routes>
+      <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
       <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage />} />
+      <Route path="/registro" element={user ? <Navigate to="/dashboard" /> : <RegistroPage />} />
       <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
       <Route path="/sustancias/nueva" element={<PrivateRoute><NuevaSustanciaPage /></PrivateRoute>} />
       <Route path="/inventario" element={<PrivateRoute><InventarioPage /></PrivateRoute>} />
@@ -49,7 +53,7 @@ function AppRoutes() {
     </SuperAdminGuard>
   </PrivateRoute>
 } />
-      <Route path="*" element={<Navigate to="/login" />} />
+      <Route path="*" element={<Navigate to="/" />} />
       <Route path="/sustancias/:id" element={<PrivateRoute><DetalleSustanciaPage /></PrivateRoute>} />
       
     </Routes>

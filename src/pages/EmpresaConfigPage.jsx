@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { auth } from "../services/firebase";
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
@@ -40,6 +40,7 @@ export default function EmpresaConfigPage() {
   const { empresaId, role } = useAuth();
   const DOC_REF = doc(db, "empresas", empresaId, "config", "empresa");
   const [campos, setCampos] = useState(DEFAULTS);
+  const [planInfo, setPlanInfo] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,9 +56,18 @@ const [errorPass, setErrorPass] = useState("");
   useEffect(() => {
     async function cargar() {
       try {
-        const snap = await getDoc(DOC_REF);
+        const [snap, snapSustancias] = await Promise.all([
+          getDoc(DOC_REF),
+          getDocs(collection(db, "empresas", empresaId, "sustancias")),
+        ]);
         if (snap.exists()) {
-          setCampos({ ...DEFAULTS, ...snap.data() });
+          const data = snap.data();
+          setCampos({ ...DEFAULTS, ...data });
+          const plan = data.plan || "free";
+          const limite = plan === "grande" ? null : (data.evaluaciones_limite ?? 5);
+          const usadas = snapSustancias.size;
+          const NOMBRES = { free: "Free", pequeña: "Pequeña", mediana: "Mediana", grande: "Grande" };
+          setPlanInfo({ plan, limite, usadas, nombre: NOMBRES[plan] || plan, plan_vence: data.plan_vence || null });
         }
       } catch (err) {
         console.error("Error cargando config:", err);
@@ -173,6 +183,53 @@ const [errorPass, setErrorPass] = useState("");
             </div>
           </div>
         </div>
+
+        {/* Plan actual */}
+        {planInfo && (
+          <div className={`rounded-2xl shadow-sm p-5 border-2 ${
+            planInfo.plan === "free" ? "bg-gray-50 border-gray-200" :
+            planInfo.plan === "pequeña" ? "bg-blue-50 border-blue-200" :
+            planInfo.plan === "mediana" ? "bg-purple-50 border-purple-200" :
+            "bg-green-50 border-green-200"
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">Plan actual</p>
+                <p className="text-xl font-bold text-gray-800">Plan {planInfo.nombre}</p>
+                {planInfo.plan_vence && (
+                  <p className="text-xs text-gray-500 mt-0.5">Vence: {new Date(planInfo.plan_vence).toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-bold text-gray-800">
+                  {planInfo.usadas}
+                  {planInfo.limite !== null && <span className="text-lg text-gray-400"> / {planInfo.limite}</span>}
+                </p>
+                <p className="text-xs text-gray-500">evaluaciones {planInfo.limite === null ? "ilimitadas" : "usadas"}</p>
+                {planInfo.limite !== null && (
+                  <div className="mt-1.5 w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(planInfo.usadas / planInfo.limite * 100, 100)}%`,
+                        backgroundColor: planInfo.usadas >= planInfo.limite ? "#dc2626" :
+                          planInfo.usadas >= planInfo.limite * 0.8 ? "#f97316" : "#2563eb"
+                      }} />
+                  </div>
+                )}
+              </div>
+            </div>
+            {planInfo.plan === "free" && (
+              <p className="text-xs text-gray-500 mt-3 border-t border-gray-200 pt-3">
+                ¿Necesitas más evaluaciones? Escríbenos a{" "}
+              <a href="https://wa.me/573007774342?text=Hola%2C%20quiero%20actualizar%20el%20plan%20de%20mi%20empresa%20en%20SIGRQ."
+                target="_blank" rel="noopener noreferrer"
+                className="text-green-600 hover:underline font-medium">
+                📲 Escríbenos por WhatsApp
+              </a>
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Logo */}
         <div className="bg-white rounded-2xl shadow-sm p-6">

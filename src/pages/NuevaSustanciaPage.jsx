@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../services/firebase";
-import { collection, addDoc, serverTimestamp, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, getDocs, orderBy, query, getDoc, doc } from "firebase/firestore";
 import SeccionNanomateriales from "../components/SeccionNanomateriales";
 import { useAuth } from "../context/AuthContext";
 
@@ -38,6 +38,8 @@ const [campos, setCampos] = useState(camposVacios);
     esFibraBiopersistente: false,
   },
 });
+  const [planInfo, setPlanInfo] = useState(null);
+  const [limitAlcanzado, setLimitAlcanzado] = useState(false);
   const navigate = useNavigate();
 
   const [sedes, setSedes] = useState([]);
@@ -46,12 +48,23 @@ useEffect(() => {
   if (!empresaId) return;
   async function cargarDatos() {
     try {
-      const [snapAreas, snapSedes] = await Promise.all([
+      const [snapAreas, snapSedes, snapConfig, snapSustancias] = await Promise.all([
         getDocs(query(collection(db, "empresas", empresaId, "areas"), orderBy("creadoEn", "desc"))),
         getDocs(query(collection(db, "empresas", empresaId, "sedes"), orderBy("creadoEn", "desc"))),
+        getDoc(doc(db, "empresas", empresaId, "config", "empresa")),
+        getDocs(collection(db, "empresas", empresaId, "sustancias")),
       ]);
       setAreas(snapAreas.docs.map(d => ({ id: d.id, ...d.data() })));
       setSedes(snapSedes.docs.map(d => ({ id: d.id, ...d.data() })));
+
+      const config = snapConfig.exists() ? snapConfig.data() : {};
+      const plan = config.plan || "free";
+      const limite = plan === "grande" ? null : (config.evaluaciones_limite ?? 5);
+      const usadas = snapSustancias.size;
+      setPlanInfo({ plan, limite, usadas });
+      const vencido = config.plan_vence ? new Date(config.plan_vence) < new Date() : false;
+      if ((limite !== null && usadas >= limite) || vencido) setLimitAlcanzado(true);
+      if (vencido) setPlanInfo({ plan, limite, usadas, vencido: true });
     } catch (err) {
       console.error("Error cargando datos:", err);
     }
@@ -190,6 +203,11 @@ useEffect(() => {
      
 
       setResultado(data);
+      // Actualizar contador local
+      setPlanInfo(prev => prev ? { ...prev, usadas: prev.usadas + 1 } : prev);
+      if (planInfo && planInfo.limite !== null && planInfo.usadas + 1 >= planInfo.limite) {
+        setLimitAlcanzado(true);
+      }
     } catch (err) {
       setError("Error en evaluación: " + err.message);
     } finally {
@@ -334,6 +352,32 @@ useEffect(() => {
 {/* Nanomateriales */}
 <SeccionNanomateriales value={nanoData} onChange={setNanoData} />
 
+        {/* Banner límite de plan */}
+        {planInfo && planInfo.limite !== null && (
+          <div className={`rounded-xl px-4 py-3 text-sm flex items-center justify-between ${
+            limitAlcanzado
+              ? "bg-red-50 border border-red-200 text-red-700"
+              : planInfo.usadas >= planInfo.limite - 1
+              ? "bg-amber-50 border border-amber-200 text-amber-700"
+              : "bg-blue-50 border border-blue-200 text-blue-700"
+          }`}>
+            <span>
+              {limitAlcanzado
+                ? planInfo?.vencido
+                  ? `⛔ Tu plan ${planInfo.plan} ha vencido. Renueva para continuar evaluando.`
+                  : `⛔ Has alcanzado el límite de ${planInfo.limite} evaluaciones del plan ${planInfo.plan}.`
+                : `📊 Evaluaciones usadas: ${planInfo.usadas} / ${planInfo.limite} (Plan ${planInfo.plan})`}
+            </span>
+            {limitAlcanzado && (
+              <a href="https://wa.me/573007774342?text=Hola%2C%20quiero%20actualizar%20el%20plan%20de%20mi%20empresa%20en%20SIGRQ.%20He%20alcanzado%20el%20l%C3%ADmite%20de%20evaluaciones."
+                target="_blank" rel="noopener noreferrer"
+                className="ml-4 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap">
+                📲 Actualizar plan
+              </a>
+            )}
+          </div>
+        )}
+
         {/* Error */}
         {error && (
           <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl">
@@ -344,10 +388,10 @@ useEffect(() => {
         {/* Botón evaluar */}
         <button
           onClick={handleEvaluar}
-          disabled={evaluando || !campos.nombre}
+          disabled={evaluando || !campos.nombre || limitAlcanzado}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl text-sm transition disabled:opacity-50"
         >
-          {evaluando ? "Evaluando riesgo..." : "Evaluar y Guardar"}
+          {evaluando ? "Evaluando riesgo..." : limitAlcanzado ? "Límite de evaluaciones alcanzado" : "Evaluar y Guardar"}
         </button>
 
         {/* Resultado */}

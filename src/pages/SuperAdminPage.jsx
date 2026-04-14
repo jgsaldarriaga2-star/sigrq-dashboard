@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, writeBatch, collectionGroup } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, writeBatch, getDoc, setDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import app, { db } from "../services/firebase";
 import { useNavigate } from "react-router-dom";
@@ -98,6 +98,42 @@ export default function SuperAdminPage() {
     }
   }
 
+  async function abrirModalPlan(empresa) {
+    try {
+      const snap = await getDoc(doc(db, "empresas", empresa.id, "config", "empresa"));
+      const config = snap.exists() ? snap.data() : {};
+      setPlanForm({
+        plan: config.plan || "free",
+        plan_vence: config.plan_vence || "",
+      });
+      setModalPlan(empresa);
+    } catch (err) {
+      alert("Error cargando plan: " + err.message);
+    }
+  }
+
+  async function guardarPlan() {
+    if (!modalPlan) return;
+    setGuardandoPlan(true);
+    const LIMITES = { free: 5, pequeña: 50, mediana: 110, grande: null };
+    try {
+      await setDoc(
+        doc(db, "empresas", modalPlan.id, "config", "empresa"),
+        {
+          plan: planForm.plan,
+          evaluaciones_limite: LIMITES[planForm.plan],
+          plan_vence: planForm.plan_vence || null,
+        },
+        { merge: true }
+      );
+      setModalPlan(null);
+    } catch (err) {
+      alert("Error guardando plan: " + err.message);
+    } finally {
+      setGuardandoPlan(false);
+    }
+  }
+
   async function toggleActiva(empresa) {
     try {
       await updateDoc(doc(db, "empresas", empresa.id), {
@@ -112,6 +148,9 @@ export default function SuperAdminPage() {
   }
 
   const [confirmEliminar, setConfirmEliminar] = useState(null);
+  const [modalPlan, setModalPlan] = useState(null); // empresa seleccionada para editar plan
+  const [planForm, setPlanForm] = useState({ plan: "free", plan_vence: "" });
+  const [guardandoPlan, setGuardandoPlan] = useState(false);
 
   async function eliminarEmpresa(empresa) {
     try {
@@ -307,6 +346,7 @@ export default function SuperAdminPage() {
                     <th className="px-4 py-3 text-left">NIT</th>
                     <th className="px-4 py-3 text-left">Ciudad</th>
                     <th className="px-4 py-3 text-left">ID Firestore</th>
+                    <th className="px-4 py-3 text-center">Plan</th>
                     <th className="px-4 py-3 text-center">Estado</th>
                     <th className="px-4 py-3 text-center">Acción</th>
                   </tr>
@@ -325,6 +365,12 @@ export default function SuperAdminPage() {
                       <td className="px-4 py-3 text-gray-400">{e.nit || "—"}</td>
                       <td className="px-4 py-3 text-gray-400">{e.ciudad || "—"}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs font-mono">{e.id}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button onClick={() => abrirModalPlan(e)}
+                          className="text-xs font-bold px-2 py-1 rounded border border-blue-700 text-blue-400 hover:bg-blue-900 transition-colors">
+                          Plan ✎
+                        </button>
+                      </td>
                       <td className="px-4 py-3 text-center">
                         {e.activa
                           ? <span className="inline-flex items-center gap-1 text-green-400 text-xs font-bold">
@@ -366,6 +412,46 @@ export default function SuperAdminPage() {
           )}
         </div>
       </main>
+
+      {/* Modal gestión de plan */}
+      {modalPlan && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-blue-800 rounded-xl p-6 max-w-sm w-full mx-4 space-y-4">
+            <h2 className="font-bold text-blue-400 text-lg">Gestionar plan</h2>
+            <p className="text-sm text-gray-300">
+              Empresa: <span className="font-bold text-white">{modalPlan.nombre}</span>
+            </p>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Plan</label>
+              <select value={planForm.plan}
+                onChange={e => setPlanForm(f => ({ ...f, plan: e.target.value }))}
+                className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                <option value="free">Free — 5 evaluaciones</option>
+                <option value="pequeña">Pequeña — 50 evaluaciones</option>
+                <option value="mediana">Mediana — 110 evaluaciones</option>
+                <option value="grande">Grande — Ilimitada</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Fecha de vencimiento del plan</label>
+              <input type="date" value={planForm.plan_vence}
+                onChange={e => setPlanForm(f => ({ ...f, plan_vence: e.target.value }))}
+                className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              <p className="text-xs text-gray-600 mt-1">Dejar vacío si no tiene vencimiento</p>
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <button onClick={() => setModalPlan(null)}
+                className="text-sm text-gray-400 border border-gray-700 px-4 py-2 rounded">
+                Cancelar
+              </button>
+              <button onClick={guardarPlan} disabled={guardandoPlan}
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded">
+                {guardandoPlan ? "Guardando..." : "Guardar plan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmEliminar && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
