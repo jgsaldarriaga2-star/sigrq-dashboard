@@ -19,7 +19,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-md p-6">
           <h1 className="text-2xl font-bold text-gray-800">Dashboard SIGRQ</h1>
-          <p className="text-gray-500 mt-1">Bienvenido, {user?.email}</p>
+          <p className="text-gray-500 mt-1">Bienvenido, {user?.displayName || user?.email}</p>
           <span className={`inline-block mt-2 px-3 py-1 text-xs font-medium rounded-full ${
             esSuperAdmin  ? "bg-purple-100 text-purple-700" :
             esAdmin       ? "bg-blue-100 text-blue-700" :
@@ -121,7 +121,7 @@ function Boton({ icono, titulo, desc, onClick }) {
       onClick={onClick}
       className="bg-white rounded-2xl shadow-sm p-6 text-left hover:shadow-md transition w-full"
     >
-      <span className="text-2xl">{icono}</span>
+      <span className="text-5xl">{icono}</span>
       <h3 className="font-semibold text-gray-800 mt-2">{titulo}</h3>
       <p className="text-xs text-gray-400 mt-1">{desc}</p>
     </button>

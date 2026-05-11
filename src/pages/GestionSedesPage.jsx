@@ -1,6 +1,6 @@
 // src/pages/GestionSedesPage.jsx
 import { useState, useEffect } from "react";
-import { collection, getDocs, addDoc, deleteDoc, doc, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -18,6 +18,16 @@ export default function GestionSedesPage() {
   const [errForm, setErrForm]   = useState("");
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Nodos IoT
+  const [areas, setAreas]           = useState([]);
+  const [nodos, setNodos]           = useState([]);
+  const [loadingNodos, setLoadingNodos] = useState(true);
+  const [confirmDeleteNodo, setConfirmDeleteNodo] = useState(null);
+  const [deletingNodo, setDeletingNodo] = useState(false);
+  const [editandoNodo, setEditandoNodo] = useState(null);
+  const [editForm, setEditForm]     = useState({ area_id: "", sedeId: "" });
+  const [guardandoNodo, setGuardandoNodo] = useState(false);
 
   useEffect(() => {
     if (role && role === "operario") navigate("/dashboard");
@@ -38,6 +48,57 @@ export default function GestionSedesPage() {
   }
 
   useEffect(() => { cargarSedes(); }, []);
+
+  useEffect(() => {
+    async function cargarAreas() {
+      try {
+        const snap = await getDocs(collection(db, "empresas", empresaId, "areas"));
+        setAreas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (_) {}
+    }
+    cargarAreas();
+    cargarNodos();
+  }, []);
+
+  async function cargarNodos() {
+    setLoadingNodos(true);
+    try {
+      const snap = await getDocs(collection(db, "empresas", empresaId, "sensores"));
+      setNodos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (_) {
+    } finally {
+      setLoadingNodos(false);
+    }
+  }
+
+  async function asignarNodo(id) {
+    setGuardandoNodo(true);
+    try {
+      await updateDoc(doc(db, "empresas", empresaId, "sensores", id), {
+        area_id: editForm.area_id || null,
+        sedeId:  editForm.sedeId  || null,
+      });
+      setEditandoNodo(null);
+      cargarNodos();
+    } catch (err) {
+      alert("Error al guardar: " + err.message);
+    } finally {
+      setGuardandoNodo(false);
+    }
+  }
+
+  async function eliminarNodo(id) {
+    setDeletingNodo(true);
+    try {
+      await deleteDoc(doc(db, "empresas", empresaId, "sensores", id));
+      setNodos(prev => prev.filter(n => n.id !== id));
+    } catch (_) {
+      alert("No se pudo eliminar el nodo.");
+    } finally {
+      setDeletingNodo(false);
+      setConfirmDeleteNodo(null);
+    }
+  }
 
   function handleForm(e) {
     const { name, value } = e.target;
@@ -205,7 +266,142 @@ export default function GestionSedesPage() {
             </div>
           )}
         </div>
+        {/* Sección nodos IoT — visible para admin y coordinador_hse */}
+        {(role === "admin" || role === "coordinador_hse") && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Nodos IoT detectados</h2>
+                <p className="text-xs text-gray-600 mt-0.5">Los sensores aparecen aquí automáticamente al enviar su primera lectura.</p>
+              </div>
+              <button onClick={cargarNodos} className="text-gray-500 hover:text-gray-300 text-sm transition-colors">↻ Actualizar</button>
+            </div>
+            {loadingNodos ? (
+              <div className="text-center py-6 text-gray-600 text-sm">Cargando nodos…</div>
+            ) : (
+              <div className="rounded-lg border border-gray-800 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-900 text-gray-400 text-xs uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left">Sensor ID</th>
+                      <th className="px-4 py-3 text-left">MAC</th>
+                      <th className="px-4 py-3 text-left">Área asignada</th>
+                      <th className="px-4 py-3 text-left">Sede</th>
+                      <th className="px-4 py-3 text-left">Estado</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {nodos.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-gray-600">
+                          Ningún sensor ha enviado lecturas todavía.
+                        </td>
+                      </tr>
+                    )}
+                    {nodos.map(n => (
+                      <tr key={n.id} className="bg-gray-950 hover:bg-gray-900 transition-colors">
+                        <td className="px-4 py-3 font-mono text-xs text-gray-200">{n.sensor_id || n.id}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-blue-300">{n.mac || <span className="text-gray-600">—</span>}</td>
+                        {editandoNodo === n.id ? (
+                          <>
+                            <td className="px-4 py-2">
+                              <select
+                                value={editForm.area_id}
+                                onChange={e => setEditForm(f => ({ ...f, area_id: e.target.value }))}
+                                className="w-full bg-gray-800 border border-gray-600 text-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                              >
+                                <option value="">Sin asignar</option>
+                                {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-4 py-2">
+                              <select
+                                value={editForm.sedeId}
+                                onChange={e => setEditForm(f => ({ ...f, sedeId: e.target.value }))}
+                                className="w-full bg-gray-800 border border-gray-600 text-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
+                              >
+                                <option value="">—</option>
+                                {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-4 py-2" />
+                            <td className="px-4 py-2 text-right whitespace-nowrap">
+                              <button onClick={() => asignarNodo(n.id)} disabled={guardandoNodo}
+                                className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded mr-2 disabled:opacity-50">
+                                {guardandoNodo ? "…" : "Guardar"}
+                              </button>
+                              <button onClick={() => setEditandoNodo(null)}
+                                className="text-xs text-gray-500 hover:text-gray-300">
+                                Cancelar
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3 text-gray-400 text-xs">
+                              {areas.find(a => a.id === n.area_id)?.nombre || <span className="text-gray-600">Sin asignar</span>}
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 text-xs">
+                              {sedes.find(s => s.id === n.sedeId)?.nombre || "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                n.activo ? "bg-green-900 text-green-300" : "bg-gray-800 text-gray-500"
+                              }`}>
+                                {n.activo ? "Activo" : "Inactivo"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <button
+                                onClick={() => { setEditandoNodo(n.id); setEditForm({ area_id: n.area_id || "", sedeId: n.sedeId || "" }); }}
+                                className="text-xs text-gray-400 hover:text-gray-200 border border-gray-700 px-3 py-1 rounded mr-2 transition-colors">
+                                Asignar
+                              </button>
+                              {role === "admin" && (
+                                <button onClick={() => setConfirmDeleteNodo(n.id)}
+                                  className="text-gray-700 hover:text-red-400 transition-colors text-xs">
+                                  ✕
+                                </button>
+                              )}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="bg-gray-900 border-t border-gray-800 px-4 py-2 text-gray-600 text-xs">
+                  {nodos.length} nodo{nodos.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
+
+      {/* Modal confirmar eliminar nodo */}
+      {confirmDeleteNodo && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-sm w-full mx-4">
+            <h2 className="text-gray-100 font-bold mb-2">Eliminar nodo IoT</h2>
+            <p className="text-gray-400 text-sm mb-6">
+              ¿Confirmas que deseas eliminar este nodo? El dispositivo dejará de poder publicar datos.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDeleteNodo(null)} disabled={deletingNodo}
+                className="flex-1 border border-gray-600 text-gray-300 rounded py-2 text-sm">
+                Cancelar
+              </button>
+              <button onClick={() => eliminarNodo(confirmDeleteNodo)} disabled={deletingNodo}
+                className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold rounded py-2 text-sm">
+                {deletingNodo ? "Eliminando…" : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal confirmar eliminar */}
       {confirmDelete && (

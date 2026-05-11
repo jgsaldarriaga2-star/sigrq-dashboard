@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function esSuperAdmin() {
+      return autenticado() && request.auth.token.role == "superadmin";
+    }
+
+    function perteneceEmpresa(empresaId) {
+      return autenticado() && request.auth.token.empresaId == empresaId;
+    }
+
+    function tieneRol(empresaId, roles) {
+      return perteneceEmpresa(empresaId) && request.auth.token.role in roles;
+    }
+
+    // ── Empresas ──────────────────────────────────────────────────────────────
+    match /empresas/{empresaId} {
+      allow read:  if esSuperAdmin() || perteneceEmpresa(empresaId);
+      allow write: if esSuperAdmin();
+
+      // ── Sedes ──────────────────────────────────────────────────────────────
+      match /sedes/{sedeId} {
+        allow read:  if esSuperAdmin() || perteneceEmpresa(empresaId);
+        allow write: if esSuperAdmin() || tieneRol(empresaId, ["admin"]);
+      }
+
+      // ── Áreas ──────────────────────────────────────────────────────────────
+      match /areas/{areaId} {
+        allow read:  if esSuperAdmin() || perteneceEmpresa(empresaId);
+        allow write: if esSuperAdmin() || tieneRol(empresaId, ["admin", "coordinador_hse"]);
+      }
+
+      // ── Sensores / Nodos IoT ───────────────────────────────────────────────
+      // superadmin: acceso total
+      // admin, coordinador_hse: pueden leer y escribir
+      // operario, supervisor y demás roles de empresa: solo lectura
+      match /sensores/{sensorId} {
+        allow read:  if esSuperAdmin() || perteneceEmpresa(empresaId);
+        allow write: if esSuperAdmin()
+                     || tieneRol(empresaId, ["admin", "coordinador_hse"]);
+      }
+
+      // ── Sustancias ─────────────────────────────────────────────────────────
+      match /sustancias/{sustanciaId} {
+        allow read:  if esSuperAdmin() || perteneceEmpresa(empresaId);
+        allow write: if esSuperAdmin() || tieneRol(empresaId, ["admin", "coordinador_hse"]);
+      }
+
+      // ── Inventario ─────────────────────────────────────────────────────────
+      match /inventario/{itemId} {
+        allow read:  if esSuperAdmin() || perteneceEmpresa(empresaId);
+        allow write: if esSuperAdmin() || tieneRol(empresaId, ["admin", "coordinador_hse"]);
+      }
+
+      // ── Usuarios ───────────────────────────────────────────────────────────
+      match /usuarios/{usuarioId} {
+        allow read:  if esSuperAdmin() || perteneceEmpresa(empresaId);
+        allow write: if esSuperAdmin() || tieneRol(empresaId, ["admin"]);
+      }
+
+      // Subcollecciones no listadas arriba: solo superadmin
+      match /{subColeccion}/{docId} {
+        allow read, write: if esSuperAdmin();
+      }
+    }
+
+    // ── Colecciones de nivel raíz (superadmin only) ────────────────────────
+    match /{document=**} {
+      allow read, write: if esSuperAdmin();
+    }
+  }
+}

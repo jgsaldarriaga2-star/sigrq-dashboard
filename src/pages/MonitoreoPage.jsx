@@ -87,7 +87,7 @@ export default function MonitoreoPage() {
       return onSnapshot(q, snap => {
         const lecturas = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
-          .filter(l => l.sensor_id === sensor.sensor_id)
+          .filter(l => l.sensor_id === sensor.id)
           .reverse();
         setLecturasPorSensor(prev => ({ ...prev, [sensor.id]: lecturas }));
       });

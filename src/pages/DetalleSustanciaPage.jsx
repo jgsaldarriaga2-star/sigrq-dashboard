@@ -554,7 +554,14 @@ export default function DetalleSustanciaPage() {
         )}
 
         {/* EPP Guantes */}
-        {ev.epp && (
+        {ev.epp?.suspendido ? (
+          <Seccion titulo="EPP — Selección de Guantes (EN ISO 374)">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="text-sm font-semibold text-red-700">⚠️ Selección de EPP suspendida</p>
+              <p className="text-xs text-red-600 mt-1">{ev.epp.motivo}</p>
+            </div>
+          </Seccion>
+        ) : ev.epp && (
           <Seccion titulo="EPP — Selección de Guantes (EN ISO 374)">
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-3">
@@ -585,7 +592,14 @@ export default function DetalleSustanciaPage() {
         )}
 
         {/* EPR */}
-        {ev.epr && (
+        {ev.epr?.suspendido ? (
+          <Seccion titulo="EPR — Protección Respiratoria (EN 14387)">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="text-sm font-semibold text-red-700">⚠️ Selección de EPR suspendida</p>
+              <p className="text-xs text-red-600 mt-1">{ev.epr.motivo}</p>
+            </div>
+          </Seccion>
+        ) : ev.epr && (
           <Seccion titulo="EPR — Protección Respiratoria (EN 14387)">
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <div className="flex flex-wrap gap-4 items-start mb-3">

@@ -19,13 +19,13 @@ export default function SensoresPage() {
   const [editando, setEditando] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ sensor_id: "", nombre: "", area_id: "", sede_id: "" });
+  const [form, setForm] = useState({ sensor_id: "", area_id: "", sede_id: "" });
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!empresaId) return;
     const unsub = onSnapshot(
-      query(collection(db, "empresas", empresaId, "sensores"), orderBy("creadoEn", "desc")),
+      collection(db, "empresas", empresaId, "sensores"),
       snap => { setSensores(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); },
       () => setLoading(false)
     );
@@ -42,14 +42,14 @@ export default function SensoresPage() {
 
   function abrirNuevo() {
     setEditando(null);
-    setForm({ sensor_id: "", nombre: "", area_id: "", sede_id: "" });
+    setForm({ sensor_id: "", area_id: "", sede_id: "" });
     setError(null);
     setMostrarForm(true);
   }
 
   function abrirEditar(s) {
     setEditando(s.id);
-    setForm({ sensor_id: s.sensor_id, nombre: s.nombre || "", area_id: s.area_id || "", sede_id: s.sede_id || "" });
+    setForm({ sensor_id: s.sensor_id, area_id: s.area_id || "", sede_id: s.sede_id || "" });
     setError(null);
     setMostrarForm(true);
   }
@@ -62,7 +62,6 @@ export default function SensoresPage() {
     try {
       const data = {
         sensor_id: form.sensor_id.trim(),
-        nombre: form.nombre.trim(),
         area_id: form.area_id,
         sede_id: form.sede_id || null,
         ultima_lectura_en: null,
@@ -142,10 +141,9 @@ export default function SensoresPage() {
                 <div key={s.id} className={`flex items-center gap-4 px-5 py-4 ${i < sensores.length - 1 ? "border-b border-gray-800" : ""}`}>
                   <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${PUNTO_COLOR[estado]}`} />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-gray-100">{s.nombre || s.sensor_id}</div>
+                    <div className="font-semibold text-gray-100">{s.sensor_id || s.id}</div>
                     <div className="text-xs text-gray-400 mt-0.5">
-                      ID: {s.sensor_id}
-                      {area && <span> · Área: {area.nombre}</span>}
+                      {area ? area.nombre : <span className="text-gray-600">Sin área</span>}
                       {sede && <span> · {sede.nombre}</span>}
                     </div>
                   </div>
@@ -168,12 +166,6 @@ export default function SensoresPage() {
                 <label className="text-xs text-gray-400 block mb-1">ID del sensor *</label>
                 <input name="sensor_id" value={form.sensor_id} onChange={handleCampo} disabled={!!editando}
                   placeholder="Ej. ESP32-S01"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Nombre descriptivo</label>
-                <input name="nombre" value={form.nombre} onChange={handleCampo}
-                  placeholder="Ej. Sensor área Ribera"
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-blue-500" />
               </div>
               <div>

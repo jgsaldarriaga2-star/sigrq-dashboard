@@ -23,6 +23,7 @@ import {
 
 const functions = getFunctions(app, "us-central1");
 const crearEmpresaFn = httpsCallable(functions, "crearEmpresa");
+const eliminarEmpresaFn = httpsCallable(functions, "eliminarEmpresa");
 
 const FORM_DEFAULTS = {
   nombre: "", nit: "", ciudad: "", direccion: "", telefono: "",
@@ -154,18 +155,7 @@ export default function SuperAdminPage() {
 
   async function eliminarEmpresa(empresa) {
     try {
-      const subcolecciones = ["sustancias", "usuarios", "areas", "sedes", "sensores", "lecturas", "alertas", "config"];
-      for (const sub of subcolecciones) {
-        const snap = await getDocs(collection(db, "empresas", empresa.id, sub));
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => {
-          if (sub === "sustancias") {
-          }
-          batch.delete(d.ref);
-        });
-        if (snap.docs.length > 0) await batch.commit();
-      }
-      await deleteDoc(doc(db, "empresas", empresa.id));
+      await eliminarEmpresaFn({ empresaId: empresa.id });
       setEmpresas(prev => prev.filter(e => e.id !== empresa.id));
       setConfirmEliminar(null);
     } catch (err) {

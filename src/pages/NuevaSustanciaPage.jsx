@@ -139,6 +139,24 @@ useEffect(() => {
   temperatura_ignicion_c:  data.temperatura_ignicion_c || null,
   fds_fecha_emision:       data.fds_fecha_emision      || null,
 }));
+
+// ── Pre-llenar nanomateriales si la IA detectó nano en la FDS ──────────
+if (data.nano_ia?.contiene_nanomaterial) {
+  const n = data.nano_ia;
+  setNanoData({
+    esNanomaterial: true,
+    nano_params: {
+      hbBase:               n.hbBase               ?? null,
+      esAnalogo:            false,   // siempre manual: depende del criterio del coordinador
+      insoluble1h:          n.insoluble1h           ?? false,
+      mayorReactividad:     n.mayorReactividad      ?? false,
+      formaFisica:          n.formaFisica           ?? "solido",
+      modificadores:        Array.isArray(n.modificadores) ? n.modificadores : [],
+      procesos:             [],      // siempre manual: depende de la operación real en planta
+      esFibraBiopersistente: n.esFibraBiopersistente ?? false,
+    },
+  });
+}
   } catch (err) {
     setError("No se pudo extraer la FDS: " + err.message);
   } finally {
@@ -487,7 +505,12 @@ function ResultadoEvaluacion({ data }) {
 )}
 
       {/* EPP — Guantes */}
-{data.epp && (
+{data.epp?.suspendido ? (
+  <div className="border border-red-200 bg-red-50 rounded-xl p-4">
+    <p className="text-sm font-semibold text-red-700">⚠️ Selección de EPP suspendida</p>
+    <p className="text-xs text-red-600 mt-1">{data.epp.motivo}</p>
+  </div>
+) : data.epp && (
   <div className="border border-gray-100 rounded-xl p-4 col-span-2">
     <p className="text-xs text-gray-500 mb-3">
       Selección de guantes — <span className="font-medium">{data.epp.norma}</span>
@@ -530,7 +553,12 @@ function ResultadoEvaluacion({ data }) {
         </div>
       )}
 {/* EPR — Protección Respiratoria */}
-{data.epr && (
+{data.epr?.suspendido ? (
+  <div className="border border-red-200 bg-red-50 rounded-xl p-4">
+    <p className="text-sm font-semibold text-red-700">⚠️ Selección de EPR suspendida</p>
+    <p className="text-xs text-red-600 mt-1">{data.epr.motivo}</p>
+  </div>
+) : data.epr && (
   <div className="border border-gray-100 rounded-xl p-4 col-span-2">
     <p className="text-xs text-gray-500 mb-1">
       Protección respiratoria — <span className="font-medium">{data.epr.norma}</span>
