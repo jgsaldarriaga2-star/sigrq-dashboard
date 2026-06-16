@@ -11,6 +11,12 @@ import {
   TextoConPictograma,
   PICTOGRAMA_LABEL,
 } from "../components/PictogramaGHS";
+import {
+  clasificarAlmacenamiento,
+  evaluarCompatibilidad,
+  GRUPOS_LABEL,
+  NIVEL_LABEL as ALMACEN_NIVEL_LABEL,
+} from "../utils/almacenamiento";
 
 const NIVEL_LABEL = { 1: "Bajo", 2: "Moderado", 3: "Alto", 4: "Muy Alto" };
 const NIVEL_COLOR = {
@@ -111,6 +117,8 @@ export default function DetalleSustanciaPage() {
   const [formUso, setFormUso] = useState({});
   const [reevaluando, setReevaluando] = useState(false);
   const [errorReeval, setErrorReeval] = useState(null);
+  const [incompatibles, setIncompatibles] = useState([]);
+  const [sedeSinAsignar, setSedeSinAsignar] = useState(false);
 
   useEffect(() => {
     if (!empresaId) return;
@@ -118,6 +126,8 @@ export default function DetalleSustanciaPage() {
     setError(null);
     setLoading(true);
     setAcciones([]);
+    setIncompatibles([]);
+    setSedeSinAsignar(false);
     setGestion({ asesor_consultado: false, controles_implementados: false, riesgo_residual: null });
     async function cargar() {
       try {
@@ -137,6 +147,38 @@ export default function DetalleSustanciaPage() {
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(d => (d.fds?.numero_cas || d.evaluacion?.cas) === cas && d.id !== id);
           setHistorial(hist);
+        }
+
+        // Compatibilidad de almacenamiento: cruzar contra el resto del
+        // inventario de la misma sede (mismo conjunto de documentos que ya
+        // se consultó arriba para el historial, sin lecturas adicionales).
+        const sedeActual = sustanciaData.uso?.sedeId || null;
+        if (!sedeActual) {
+          setSedeSinAsignar(true);
+        } else {
+          const propia = clasificarAlmacenamiento(sustanciaData.fds);
+          const vistos = new Set();
+          const resultado = [];
+          for (const d of snapHistorial.docs) {
+            if (d.id === id) continue;
+            const otra = { id: d.id, ...d.data() };
+            if ((otra.uso?.sedeId || null) !== sedeActual) continue;
+            const clave = otra.fds?.numero_cas || otra.evaluacion?.cas || otra.id;
+            if (vistos.has(clave)) continue; // una sola fila por CAS, no por cada re-evaluación
+            vistos.add(clave);
+            const compat = evaluarCompatibilidad(propia, clasificarAlmacenamiento(otra.fds));
+            if (compat.nivel !== "ok") {
+              resultado.push({
+                id: otra.id,
+                nombre: otra.evaluacion?.sustancia ?? otra.fds?.nombre_comercial ?? "Sin nombre",
+                area: otra.evaluacion?.area || otra.uso?.area || null,
+                nivel: compat.nivel,
+                motivos: compat.motivos,
+              });
+            }
+          }
+          resultado.sort((a, b) => (a.nivel === b.nivel ? 0 : a.nivel === "peligro" ? -1 : 1));
+          setIncompatibles(resultado);
         }
 
         // Cargar gestión y acciones
@@ -163,6 +205,16 @@ export default function DetalleSustanciaPage() {
     }
     cargar();
   }, [id, empresaId]);
+
+  // Si se navegó aquí desde el botón "Ver" de una incompatibilidad de
+  // almacenamiento, saltar directo a esa sección una vez cargados los datos.
+  useEffect(() => {
+    if (loading) return;
+    if (window.location.hash === "#almacenamiento") {
+      const el = document.getElementById("almacenamiento");
+      if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    }
+  }, [loading]);
 
   function abrirReeval() {
     setFormUso({
@@ -273,6 +325,7 @@ export default function DetalleSustanciaPage() {
   const fds = sustancia.fds ?? {};
   const uso = sustancia.uso ?? {};
   const nivelInhalacion = ev.inhalacion?.nivel ?? 0;
+  const gruposAlmacenamiento = clasificarAlmacenamiento(fds).grupos;
   const estadoFds = estadoFDS(ev.fds_caducidad);
 
   return (
@@ -580,6 +633,61 @@ export default function DetalleSustanciaPage() {
             </div>
           </Seccion>
         )}
+
+        {/* Compatibilidad de almacenamiento */}
+        <div id="almacenamiento">
+        <Seccion titulo="Compatibilidad de Almacenamiento">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            {gruposAlmacenamiento.length > 0 ? (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {gruposAlmacenamiento.map(g => (
+                  <span key={g} className="bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-lg">
+                    {GRUPOS_LABEL[g]}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 mb-1">
+                Sin grupo de almacenamiento especial — no presenta peligros físicos que requieran segregación.
+              </p>
+            )}
+
+            {sedeSinAsignar && (
+              <p className="text-xs text-gray-400 italic mt-2">
+                Esta sustancia no tiene sede asignada, así que no se cruzó contra el resto del inventario.
+              </p>
+            )}
+
+            {!sedeSinAsignar && gruposAlmacenamiento.length > 0 && incompatibles.length === 0 && (
+              <p className="text-xs text-green-600 mt-2">
+                ✓ No se detectaron incompatibilidades con otras sustancias registradas en esta sede.
+              </p>
+            )}
+
+            {incompatibles.length > 0 && (
+              <div className="space-y-2 mt-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">
+                  Incompatibilidades detectadas en esta sede ({incompatibles.length})
+                </p>
+                {incompatibles.map(item => (
+                  <div key={item.id}
+                    className={`border rounded-lg px-4 py-3 ${item.nivel === "peligro" ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}>
+                    <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
+                      <span className={`text-sm font-semibold ${item.nivel === "peligro" ? "text-red-700" : "text-amber-700"}`}>
+                        {item.nivel === "peligro" ? "⚠ " : ""}{ALMACEN_NIVEL_LABEL[item.nivel]} — {item.nombre}
+                      </span>
+                      <button onClick={(e) => { e.stopPropagation(); navigate(`/sustancias/${item.id}#almacenamiento`); }}
+                        className="text-xs text-blue-500 hover:underline whitespace-nowrap">Ver →</button>
+                    </div>
+                    {item.area && <p className="text-xs text-gray-500">Área: {item.area}</p>}
+                    <p className="text-xs text-gray-600 mt-1">{item.motivos.join(" · ")}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Seccion>
+        </div>
 
         {/* EPP Guantes */}
         {ev.epp?.suspendido ? (
