@@ -5,12 +5,6 @@ import { doc, getDoc, collection, getDocs, addDoc, updateDoc, query, orderBy, se
 import { db, auth } from "../services/firebase";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import {
-  GHSPictograma,
-  PictogramasFiltrados,
-  TextoConPictograma,
-  PICTOGRAMA_LABEL,
-} from "../components/PictogramaGHS";
 
 const NIVEL_LABEL = { 1: "Bajo", 2: "Moderado", 3: "Alto", 4: "Muy Alto" };
 const NIVEL_COLOR = {
@@ -30,6 +24,11 @@ const GUANTE_COLOR = {
   no_apto:  "bg-red-100 text-red-700 border-red-300",
 };
 const GUANTE_LABEL = { apto: "✓ Apto", limitado: "⚠ Limitado", no_apto: "✕ No apto" };
+const PICTOGRAMA_LABEL = {
+  llama: "🔥 Inflamable", oxidante: "🔆 Oxidante", corrosion: "⚗ Corrosivo",
+  calavera: "☠ Tóxico agudo", salud: "⚕ Peligro salud", exclamacion: "❕ Irritante",
+  gas_presion: "🫙 Gas presión", medio_ambiente: "🌿 Ecotóxico",
+};
 const CL_COLOR = {
   1: "bg-green-100 text-green-800", 2: "bg-yellow-100 text-yellow-800",
   3: "bg-orange-100 text-orange-800", 4: "bg-red-100 text-red-800",
@@ -349,10 +348,7 @@ export default function DetalleSustanciaPage() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 pb-1 mb-3">Resumen Ejecutivo</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className={`rounded-xl p-4 text-center ${NIVEL_COLOR[nivelInhalacion] || "bg-gray-100 text-gray-600"}`}>
-              <p className="text-xs font-bold uppercase tracking-wider mb-1 flex items-center justify-center gap-1.5">
-                Inhalación
-                <PictogramasFiltrados pictogramasGhs={fds.pictogramas_ghs} categoria="inhalacion" size={14} />
-              </p>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1">Inhalación</p>
               <p className="text-xl font-bold">{NIVEL_LABEL[nivelInhalacion] ?? "N/E"}</p>
               <p className="text-xs mt-1">HG: {ev.inhalacion?.hg ?? "—"}</p>
               {ev.inhalacion?.nivelBase && ev.inhalacion.nivelBase !== nivelInhalacion && (
@@ -360,18 +356,12 @@ export default function DetalleSustanciaPage() {
               )}
             </div>
             <div className={`rounded-xl p-4 text-center ${PIEL_COLOR[ev.piel?.nivel] || "bg-gray-100 text-gray-600"}`}>
-              <p className="text-xs font-bold uppercase tracking-wider mb-1 flex items-center justify-center gap-1.5">
-                Piel
-                <PictogramasFiltrados pictogramasGhs={fds.pictogramas_ghs} categoria="piel" size={14} />
-              </p>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1">Piel</p>
               <p className="text-xl font-bold capitalize">{ev.piel?.nivel ?? "N/E"}</p>
               <p className="text-xs mt-1">HG: {ev.piel?.hgPiel ?? "—"}</p>
             </div>
             <div className="bg-gray-100 rounded-xl p-4 text-center">
-              <p className="text-xs font-bold uppercase tracking-wider mb-1 text-gray-600 flex items-center justify-center gap-1.5">
-                Fuego
-                <PictogramasFiltrados pictogramasGhs={fds.pictogramas_ghs} categoria="fuego" size={14} />
-              </p>
+              <p className="text-xs font-bold uppercase tracking-wider mb-1 text-gray-600">Fuego</p>
               <p className="text-xl font-bold text-gray-800">Serie {ev.fuego?.serie ?? "—"}</p>
               <p className="text-xs mt-1 text-gray-600">Grupo: {ev.fuego?.grupoPC ?? "—"}</p>
             </div>
@@ -461,10 +451,7 @@ export default function DetalleSustanciaPage() {
               <p className="text-xs text-gray-500 mb-1">Pictogramas GHS</p>
               <div className="flex flex-wrap gap-2">
                 {fds.pictogramas_ghs.map(p => (
-                  <span key={p} className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">
-                    <GHSPictograma tipo={p} size={18} />
-                    {PICTOGRAMA_LABEL[p] ?? p}
-                  </span>
+                  <span key={p} className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">{PICTOGRAMA_LABEL[p] ?? p}</span>
                 ))}
               </div>
             </div>
@@ -505,12 +492,7 @@ export default function DetalleSustanciaPage() {
         </Seccion>
 
         {/* Inhalación */}
-        <Seccion titulo={
-          <span className="inline-flex items-center gap-2">
-            Evaluación — Inhalación
-            <PictogramasFiltrados pictogramasGhs={fds.pictogramas_ghs} categoria="inhalacion" size={14} />
-          </span>
-        }>
+        <Seccion titulo="Evaluación — Inhalación">
           <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-4">
             <div className={`px-3 py-2 rounded-lg text-center min-w-24 ${NIVEL_COLOR[nivelInhalacion] || "bg-gray-100"}`}>
               <p className="text-xs font-bold">Nivel</p>
@@ -528,12 +510,7 @@ export default function DetalleSustanciaPage() {
 
         {/* Piel */}
         {uso.contacto_piel && (
-          <Seccion titulo={
-            <span className="inline-flex items-center gap-2">
-              Evaluación — Piel
-              <PictogramasFiltrados pictogramasGhs={fds.pictogramas_ghs} categoria="piel" size={14} />
-            </span>
-          }>
+          <Seccion titulo="Evaluación — Piel">
             <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-4">
               <div className={`px-3 py-2 rounded-lg text-center min-w-24 ${PIEL_COLOR[ev.piel?.nivel] || "bg-gray-100"}`}>
                 <p className="text-xs font-bold">Nivel</p>
@@ -547,12 +524,7 @@ export default function DetalleSustanciaPage() {
         )}
 
         {/* Fuego */}
-        <Seccion titulo={
-          <span className="inline-flex items-center gap-2">
-            Evaluación — Fuego / Explosión
-            <PictogramasFiltrados pictogramasGhs={fds.pictogramas_ghs} categoria="fuego" size={14} />
-          </span>
-        }>
+        <Seccion titulo="Evaluación — Fuego / Explosión">
           <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-4">
             <div className="bg-gray-100 px-3 py-2 rounded-lg text-center min-w-24">
               <p className="text-xs font-bold text-gray-600">Serie</p>
@@ -593,9 +565,7 @@ export default function DetalleSustanciaPage() {
           <Seccion titulo="EPP — Selección de Guantes (EN ISO 374)">
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <p className="text-xs text-gray-500 mb-3">
-                Tipo de sustancia: <span className="font-medium capitalize text-gray-700">
-                  <TextoConPictograma texto={ev.epp.tipo_sustancia} size={14} />
-                </span>
+                Tipo de sustancia: <span className="font-medium capitalize text-gray-700">{ev.epp.tipo_sustancia}</span>
               </p>
               <div className="flex flex-wrap gap-2 mb-3">
                 {Object.entries(ev.epp.compatibilidad).map(([material, nivel]) => (
