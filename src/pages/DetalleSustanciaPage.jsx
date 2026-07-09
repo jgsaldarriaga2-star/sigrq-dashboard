@@ -341,6 +341,12 @@ export default function DetalleSustanciaPage() {
             </button>
           )}
           {(role === "admin" || role === "coordinador_hse" || role === "superadmin") && (
+            <button onClick={() => navigate(`/sustancias/${id}/ficha-emergencia`)}
+              className="bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+              ⚠ Ver ficha de emergencia
+            </button>
+          )}
+          {(role === "admin" || role === "coordinador_hse" || role === "superadmin") && (
             <button onClick={abrirReeval}
               className="bg-amber-500 hover:bg-amber-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
               ↺ Re-evaluar

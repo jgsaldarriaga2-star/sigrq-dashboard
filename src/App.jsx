@@ -17,6 +17,7 @@ import ReporteCumplimientoPage from "./pages/ReporteCumplimientoPage";
 import SensoresPage from "./pages/SensoresPage";
 import UmbralesIotPage from "./pages/UmbralesIotPage";
 import MonitoreoPage from "./pages/MonitoreoPage";
+import FichaEmergenciaPage from "./pages/FichaEmergenciaPage";
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -26,6 +27,10 @@ function PrivateRoute({ children }) {
 function SuperAdminGuard({ children }) {
   const { role } = useAuth();
   return role === "superadmin" ? children : <Navigate to="/dashboard" />;
+}
+function RolGuard({ roles, children }) {
+  const { role } = useAuth();
+  return roles.includes(role) ? children : <Navigate to="/dashboard" />;
 }
 function AppRoutes() {
   const { user } = useAuth();
@@ -55,7 +60,14 @@ function AppRoutes() {
 } />
       <Route path="*" element={<Navigate to="/" />} />
       <Route path="/sustancias/:id" element={<PrivateRoute><DetalleSustanciaPage /></PrivateRoute>} />
-      
+      <Route path="/sustancias/:id/ficha-emergencia" element={
+        <PrivateRoute>
+          <RolGuard roles={["admin", "coordinador_hse", "superadmin"]}>
+            <FichaEmergenciaPage />
+          </RolGuard>
+        </PrivateRoute>
+      } />
+
     </Routes>
   );
 }

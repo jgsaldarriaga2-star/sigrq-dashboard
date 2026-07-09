@@ -2,6 +2,7 @@ import { useAuth } from "../context/AuthContext";
 import { signOut } from "firebase/auth";
 import { auth } from "../services/firebase";
 import { useNavigate } from "react-router-dom";
+import PanelPrioridadesSede from "../components/PanelPrioridadesSede";
 
 export default function DashboardPage() {
   const { user, role } = useAuth();
@@ -35,6 +36,9 @@ export default function DashboardPage() {
             Cerrar sesión
           </button>
         </div>
+
+        {/* Panel de Prioridades por Sede — admin, coordinador_hse, superadmin */}
+        {(esAdmin || esCoordinador || esSuperAdmin) && <PanelPrioridadesSede />}
 
         {/* ── SUPERADMIN ─────────────────────────────────────────── */}
         {esSuperAdmin && (
