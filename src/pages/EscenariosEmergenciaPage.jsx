@@ -14,11 +14,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  collection, doc, addDoc, updateDoc, getDocs, orderBy, query, serverTimestamp,
+  collection, doc, addDoc, updateDoc, getDoc, getDocs, orderBy, query, serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
 import { sugerirEscenarios, TIPO_ICONO } from "../utils/escenariosEmergencia";
 import { TIPO_EMERGENCIA_LABEL } from "../utils/emergencia";
 
@@ -80,8 +81,12 @@ export default function EscenariosEmergenciaPage() {
   const [escenarios, setEscenarios] = useState([]);
   const [recursos, setRecursos] = useState([]);
   const [contactos, setContactos] = useState([]);
+  const [empresaNombre, setEmpresaNombre] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // ── Modo Emergencia Móvil: QR por sede ───────────────────────────────
+  const [sedeQR, setSedeQR] = useState(null);
 
   // ── Escenarios: flujo de creación ────────────────────────────────────
   const [mostrarCrear, setMostrarCrear] = useState(false);
@@ -118,13 +123,14 @@ export default function EscenariosEmergenciaPage() {
     setLoading(true);
     setError(null);
     try {
-      const [snapAreas, snapSedes, snapSustancias, snapEscenarios, snapRecursos, snapContactos] = await Promise.all([
+      const [snapAreas, snapSedes, snapSustancias, snapEscenarios, snapRecursos, snapContactos, snapEmpresa] = await Promise.all([
         getDocs(query(collection(db, "empresas", empresaId, "areas"), orderBy("creadoEn", "desc"))),
         getDocs(query(collection(db, "empresas", empresaId, "sedes"), orderBy("creadoEn", "desc"))),
         getDocs(collection(db, "empresas", empresaId, "sustancias")),
         getDocs(query(collection(db, "empresas", empresaId, "escenarios_emergencia"), orderBy("creadoEn", "desc"))),
         getDocs(query(collection(db, "empresas", empresaId, "recursos_emergencia"), orderBy("creadoEn", "desc"))),
         getDocs(query(collection(db, "empresas", empresaId, "contactos_emergencia"), orderBy("creadoEn", "desc"))),
+        getDoc(doc(db, "empresas", empresaId, "config", "empresa")),
       ]);
       setAreas(snapAreas.docs.map(d => ({ id: d.id, ...d.data() })));
       setSedes(snapSedes.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -132,6 +138,7 @@ export default function EscenariosEmergenciaPage() {
       setEscenarios(snapEscenarios.docs.map(d => ({ id: d.id, ...d.data() })));
       setRecursos(snapRecursos.docs.map(d => ({ id: d.id, ...d.data() })));
       setContactos(snapContactos.docs.map(d => ({ id: d.id, ...d.data() })));
+      setEmpresaNombre(snapEmpresa.exists() ? (snapEmpresa.data().nombre_empresa || "") : "");
     } catch (err) {
       console.error("Error cargando el módulo de emergencias:", err);
       setError("No se pudo cargar el módulo de emergencias.");
@@ -392,6 +399,14 @@ export default function EscenariosEmergenciaPage() {
   }
   const btn = botonAgregar();
 
+  // Modo Emergencia Móvil: URL pública por sede (sin login). El nombre de
+  // empresa/sede va como query param para no tener que abrir a lectura
+  // pública los documentos empresas/sedes (que traen más datos, como NIT).
+  function urlEmergencia(sede) {
+    const params = new URLSearchParams({ empresa: empresaNombre || "", sede: sede.nombre || "" });
+    return `${window.location.origin}/emergencia/${empresaId}/${sede.id}?${params.toString()}`;
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 font-mono">
       <header className="print:hidden border-b border-gray-800 bg-gray-900 px-6 py-4">
@@ -432,6 +447,27 @@ export default function EscenariosEmergenciaPage() {
           ))}
         </div>
       </div>
+
+      {/* Modo Emergencia Móvil — QR por sede, visible en cualquier pestaña */}
+      {!loading && !error && (
+        <div className="print:hidden max-w-4xl mx-auto px-6 pt-6">
+          {sedes.length === 0 ? (
+            <p className="text-xs text-gray-600">
+              Crea al menos una sede en <button onClick={() => navigate("/sedes")} className="text-blue-400 hover:underline">Gestión de Sedes</button> para generar códigos QR de Modo Emergencia Móvil.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-500 uppercase tracking-wide">📱 QR Modo Emergencia:</span>
+              {sedes.map(s => (
+                <button key={s.id} onClick={() => setSedeQR(s)}
+                  className="text-xs bg-gray-900 border border-gray-700 hover:border-red-500 text-gray-300 px-3 py-1.5 rounded transition-colors">
+                  {s.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
         {loading && <div className="text-center py-16 text-gray-600 text-sm">Cargando…</div>}
@@ -781,6 +817,37 @@ export default function EscenariosEmergenciaPage() {
         </div>
       )}
 
+      {/* Modal: QR Modo Emergencia Móvil */}
+      {sedeQR && (
+        <div className="qr-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full text-center">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-gray-900 font-bold text-left">QR de Emergencia</h2>
+              <button onClick={() => setSedeQR(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">{sedeQR.nombre}</p>
+            <p className="text-xs text-gray-500 mb-4">
+              Imprime y pega este código en el área física. Cualquiera puede escanearlo y ver la información de
+              emergencia de esta sede sin necesidad de iniciar sesión.
+            </p>
+            <div className="flex justify-center mb-4 bg-white p-3 border border-gray-200 rounded-lg inline-block">
+              <QRCodeSVG value={urlEmergencia(sedeQR)} size={200} />
+            </div>
+            <p className="text-[10px] text-gray-400 break-all mb-4">{urlEmergencia(sedeQR)}</p>
+            <div className="flex gap-2 justify-center">
+              <button onClick={() => navigator.clipboard.writeText(urlEmergencia(sedeQR))}
+                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded transition-colors">
+                Copiar enlace
+              </button>
+              <button onClick={() => window.print()}
+                className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded transition-colors">
+                🖨 Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @media print {
           body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -793,6 +860,14 @@ export default function EscenariosEmergenciaPage() {
               border-color: #ccc !important;
             }
             .escenario-card.imprimir-activo * { color: #111 !important; }
+          ` : ""}
+          ${sedeQR ? `
+            main { display: none !important; }
+            .qr-modal-overlay {
+              position: static !important;
+              background: white !important;
+              display: block !important;
+            }
           ` : ""}
           @page { margin: 1.5cm; }
         }

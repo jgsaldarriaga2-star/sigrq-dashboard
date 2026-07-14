@@ -19,6 +19,7 @@ import UmbralesIotPage from "./pages/UmbralesIotPage";
 import MonitoreoPage from "./pages/MonitoreoPage";
 import FichaEmergenciaPage from "./pages/FichaEmergenciaPage";
 import EscenariosEmergenciaPage from "./pages/EscenariosEmergenciaPage";
+import ModoEmergenciaPage from "./pages/ModoEmergenciaPage";
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -75,6 +76,8 @@ function AppRoutes() {
           </RolGuard>
         </PrivateRoute>
       } />
+      {/* Pública — sin PrivateRoute. Acceso vía QR o enlace compartido, sin login. */}
+      <Route path="/emergencia/:empresaId/:sedeId" element={<ModoEmergenciaPage />} />
 
     </Routes>
   );
