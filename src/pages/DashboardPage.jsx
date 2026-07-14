@@ -78,6 +78,12 @@ export default function DashboardPage() {
                 onClick={() => navigate("/sedes")} />
             )}
 
+            {/* Escenarios de emergencia — admin y coordinador */}
+            {(esAdmin || esCoordinador) && (
+              <Boton icono="🧯" titulo="Escenarios de emergencia" desc="Planes de respuesta por área"
+                onClick={() => navigate("/escenarios-emergencia")} />
+            )}
+
             {/* Usuarios — solo admin */}
             {esAdmin && (
               <Boton icono="👥" titulo="Usuarios" desc="Gestionar coordinadores y operarios"

@@ -18,6 +18,7 @@ import SensoresPage from "./pages/SensoresPage";
 import UmbralesIotPage from "./pages/UmbralesIotPage";
 import MonitoreoPage from "./pages/MonitoreoPage";
 import FichaEmergenciaPage from "./pages/FichaEmergenciaPage";
+import EscenariosEmergenciaPage from "./pages/EscenariosEmergenciaPage";
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -64,6 +65,13 @@ function AppRoutes() {
         <PrivateRoute>
           <RolGuard roles={["admin", "coordinador_hse", "superadmin"]}>
             <FichaEmergenciaPage />
+          </RolGuard>
+        </PrivateRoute>
+      } />
+      <Route path="/escenarios-emergencia" element={
+        <PrivateRoute>
+          <RolGuard roles={["admin", "coordinador_hse"]}>
+            <EscenariosEmergenciaPage />
           </RolGuard>
         </PrivateRoute>
       } />
