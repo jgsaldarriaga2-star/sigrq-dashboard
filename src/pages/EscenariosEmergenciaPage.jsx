@@ -1,9 +1,15 @@
 // src/pages/EscenariosEmergenciaPage.jsx
 //
-// Módulo de Escenarios de Emergencia — planes de respuesta por área,
-// sugeridos automáticamente a partir de las sustancias registradas en esa
-// área y sus incompatibilidades de almacenamiento (utils/escenariosEmergencia.js,
-// que a su vez reutiliza utils/almacenamiento.js y utils/emergencia.js).
+// Módulo de Emergencias — tres pestañas dentro de una misma página:
+//  · Escenarios: planes de respuesta por área, sugeridos automáticamente a
+//    partir de las sustancias del área y sus incompatibilidades de
+//    almacenamiento (utils/escenariosEmergencia.js, que reutiliza
+//    utils/almacenamiento.js y utils/emergencia.js).
+//  · Recursos: extintores, kits de derrame, duchas, lavaojos y botiquines
+//    por sede/área, con alerta de revisión próxima a vencer.
+//  · Contactos: directorio de emergencia por tipo, con CISPROQUIM y la
+//    línea nacional de emergencias fijas al tope (no editables, igual que
+//    en FichaEmergenciaPage.jsx).
 // Ruta: /escenarios-emergencia · Roles: admin, coordinador_hse
 
 import { useState, useEffect, useMemo } from "react";
@@ -18,17 +24,66 @@ import { TIPO_EMERGENCIA_LABEL } from "../utils/emergencia";
 
 const TIPOS = ["incendio", "fuga_toxica", "derrame_corrosivo"];
 
+const TIPO_RECURSO_LABEL = {
+  extintor: "Extintor",
+  kit_derrame: "Kit de derrames",
+  ducha_emergencia: "Ducha de emergencia",
+  lavaojos: "Lavaojos",
+  botiquin: "Botiquín",
+};
+const TIPO_RECURSO_ICONO = {
+  extintor: "🧯",
+  kit_derrame: "🪣",
+  ducha_emergencia: "🚿",
+  lavaojos: "💧",
+  botiquin: "🩹",
+};
+
+const TIPO_CONTACTO_LABEL = {
+  brigada_interna: "Brigada interna",
+  bomberos: "Bomberos",
+  arl: "ARL",
+  cisproquim: "CISPROQUIM",
+  policia: "Policía",
+  ambulancia: "Ambulancia",
+};
+const TIPO_CONTACTO_ICONO = {
+  brigada_interna: "👷",
+  bomberos: "🚒",
+  arl: "🏥",
+  cisproquim: "☎️",
+  policia: "🚓",
+  ambulancia: "🚑",
+};
+
+// Mismos contactos fijos que FichaEmergenciaPage.jsx — no se guardan en
+// Firestore, se muestran siempre al tope de la pestaña Contactos.
+const CISPROQUIM = "01 8000 916012";
+const EMERGENCIA_NACIONAL = "123";
+
+function estadoRevision(proximaRevision) {
+  if (!proximaRevision) return null;
+  const dias = (new Date(proximaRevision) - new Date()) / (1000 * 60 * 60 * 24);
+  if (dias < 30) return "alerta"; // vencida o a menos de 30 días — badge rojo
+  return "vigente";
+}
+
 export default function EscenariosEmergenciaPage() {
   const { empresaId } = useAuth();
   const navigate = useNavigate();
+
+  const [tab, setTab] = useState("escenarios"); // "escenarios" | "recursos" | "contactos"
 
   const [areas, setAreas] = useState([]);
   const [sedes, setSedes] = useState([]);
   const [sustancias, setSustancias] = useState([]);
   const [escenarios, setEscenarios] = useState([]);
+  const [recursos, setRecursos] = useState([]);
+  const [contactos, setContactos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // ── Escenarios: flujo de creación ────────────────────────────────────
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [areaSeleccionadaId, setAreaSeleccionadaId] = useState("");
   const [sugerencias, setSugerencias] = useState([]);
@@ -38,32 +93,55 @@ export default function EscenariosEmergenciaPage() {
 
   const [imprimirId, setImprimirId] = useState(null);
 
+  // ── Recursos: formulario de creación ─────────────────────────────────
+  const [mostrarCrearRecurso, setMostrarCrearRecurso] = useState(false);
+  const [formRecurso, setFormRecurso] = useState(recursoVacio());
+  const [guardandoRecurso, setGuardandoRecurso] = useState(false);
+  const [errorRecurso, setErrorRecurso] = useState("");
+
+  // ── Contactos: formulario de creación ────────────────────────────────
+  const [mostrarCrearContacto, setMostrarCrearContacto] = useState(false);
+  const [formContacto, setFormContacto] = useState(contactoVacio());
+  const [guardandoContacto, setGuardandoContacto] = useState(false);
+  const [errorContacto, setErrorContacto] = useState("");
+
+  function recursoVacio() {
+    return { tipo: "extintor", ubicacion: "", sedeId: "", areaNombre: "", fechaUltimaRevision: "", proximaRevision: "" };
+  }
+  function contactoVacio() {
+    return { nombre: "", cargo: "", telefono: "", tipo: "brigada_interna", sedeId: "" };
+  }
+
   // ── Carga inicial ──────────────────────────────────────────────────────
   async function cargarTodo() {
     if (!empresaId) return;
     setLoading(true);
     setError(null);
     try {
-      const [snapAreas, snapSedes, snapSustancias, snapEscenarios] = await Promise.all([
+      const [snapAreas, snapSedes, snapSustancias, snapEscenarios, snapRecursos, snapContactos] = await Promise.all([
         getDocs(query(collection(db, "empresas", empresaId, "areas"), orderBy("creadoEn", "desc"))),
         getDocs(query(collection(db, "empresas", empresaId, "sedes"), orderBy("creadoEn", "desc"))),
         getDocs(collection(db, "empresas", empresaId, "sustancias")),
         getDocs(query(collection(db, "empresas", empresaId, "escenarios_emergencia"), orderBy("creadoEn", "desc"))),
+        getDocs(query(collection(db, "empresas", empresaId, "recursos_emergencia"), orderBy("creadoEn", "desc"))),
+        getDocs(query(collection(db, "empresas", empresaId, "contactos_emergencia"), orderBy("creadoEn", "desc"))),
       ]);
       setAreas(snapAreas.docs.map(d => ({ id: d.id, ...d.data() })));
       setSedes(snapSedes.docs.map(d => ({ id: d.id, ...d.data() })));
       setSustancias(snapSustancias.docs.map(d => ({ id: d.id, ...d.data() })));
       setEscenarios(snapEscenarios.docs.map(d => ({ id: d.id, ...d.data() })));
+      setRecursos(snapRecursos.docs.map(d => ({ id: d.id, ...d.data() })));
+      setContactos(snapContactos.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
-      console.error("Error cargando escenarios de emergencia:", err);
-      setError("No se pudo cargar el módulo de escenarios de emergencia.");
+      console.error("Error cargando el módulo de emergencias:", err);
+      setError("No se pudo cargar el módulo de emergencias.");
     } finally {
       setLoading(false);
     }
   }
   useEffect(() => { cargarTodo(); }, [empresaId]);
 
-  // ── Impresión (una tarjeta a la vez, vía window.print()) ────────────────
+  // ── Impresión (una tarjeta de escenario a la vez, vía window.print()) ──
   useEffect(() => {
     function limpiar() { setImprimirId(null); }
     window.addEventListener("afterprint", limpiar);
@@ -102,7 +180,7 @@ export default function EscenariosEmergenciaPage() {
     return resultado;
   }
 
-  // ── Flujo de creación ─────────────────────────────────────────────────
+  // ── Escenarios: flujo de creación ─────────────────────────────────────
   function abrirCrear() {
     setMostrarCrear(true);
     setAreaSeleccionadaId("");
@@ -220,6 +298,100 @@ export default function EscenariosEmergenciaPage() {
     return grupos;
   }, [escenarios, sedes]);
 
+  // ── Recursos: creación ────────────────────────────────────────────────
+  function abrirCrearRecurso() {
+    setFormRecurso(recursoVacio());
+    setErrorRecurso("");
+    setMostrarCrearRecurso(true);
+  }
+  function handleFormRecurso(field, value) {
+    setFormRecurso(prev => ({ ...prev, [field]: value }));
+  }
+  async function guardarRecurso() {
+    if (!formRecurso.ubicacion.trim()) { setErrorRecurso("La ubicación es obligatoria."); return; }
+    setGuardandoRecurso(true);
+    setErrorRecurso("");
+    try {
+      await addDoc(collection(db, "empresas", empresaId, "recursos_emergencia"), {
+        tipo: formRecurso.tipo,
+        ubicacion: formRecurso.ubicacion.trim(),
+        sedeId: formRecurso.sedeId || null,
+        areaNombre: formRecurso.areaNombre.trim() || null,
+        fechaUltimaRevision: formRecurso.fechaUltimaRevision || null,
+        proximaRevision: formRecurso.proximaRevision || null,
+        creadoEn: serverTimestamp(),
+      });
+      setMostrarCrearRecurso(false);
+      cargarTodo();
+    } catch (err) {
+      setErrorRecurso("Error al guardar: " + err.message);
+    } finally {
+      setGuardandoRecurso(false);
+    }
+  }
+
+  const recursosPorGrupo = useMemo(() => {
+    const grupos = {};
+    for (const r of recursos) {
+      const sedeNombre = sedes.find(s => s.id === r.sedeId)?.nombre;
+      const key = `${r.areaNombre || "Sin área"} — ${sedeNombre || "Sin sede"}`;
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(r);
+    }
+    return grupos;
+  }, [recursos, sedes]);
+
+  // ── Contactos: creación ───────────────────────────────────────────────
+  function abrirCrearContacto() {
+    setFormContacto(contactoVacio());
+    setErrorContacto("");
+    setMostrarCrearContacto(true);
+  }
+  function handleFormContacto(field, value) {
+    setFormContacto(prev => ({ ...prev, [field]: value }));
+  }
+  async function guardarContacto() {
+    if (!formContacto.nombre.trim() || !formContacto.telefono.trim()) {
+      setErrorContacto("Nombre y teléfono son obligatorios.");
+      return;
+    }
+    setGuardandoContacto(true);
+    setErrorContacto("");
+    try {
+      await addDoc(collection(db, "empresas", empresaId, "contactos_emergencia"), {
+        nombre: formContacto.nombre.trim(),
+        cargo: formContacto.cargo.trim() || null,
+        telefono: formContacto.telefono.trim(),
+        tipo: formContacto.tipo,
+        sedeId: formContacto.sedeId || null,
+        creadoEn: serverTimestamp(),
+      });
+      setMostrarCrearContacto(false);
+      cargarTodo();
+    } catch (err) {
+      setErrorContacto("Error al guardar: " + err.message);
+    } finally {
+      setGuardandoContacto(false);
+    }
+  }
+
+  const contactosPorTipo = useMemo(() => {
+    const grupos = {};
+    for (const c of contactos) {
+      const key = c.tipo || "otro";
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(c);
+    }
+    return grupos;
+  }, [contactos]);
+
+  function botonAgregar() {
+    if (tab === "escenarios") return { label: "+ Nuevo escenario", onClick: abrirCrear };
+    if (tab === "recursos") return { label: "+ Agregar recurso", onClick: abrirCrearRecurso };
+    return { label: "+ Agregar contacto", onClick: abrirCrearContacto };
+  }
+  const btn = botonAgregar();
+
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 font-mono">
       <header className="print:hidden border-b border-gray-800 bg-gray-900 px-6 py-4">
@@ -231,46 +403,128 @@ export default function EscenariosEmergenciaPage() {
             </button>
             <span className="text-gray-700">|</span>
             <h1 className="text-lg font-bold tracking-tight text-gray-100">
-              SIGRQ <span className="text-gray-500 font-normal">/ Escenarios de Emergencia</span>
+              SIGRQ <span className="text-gray-500 font-normal">/ Emergencias</span>
             </h1>
           </div>
-          <button onClick={abrirCrear}
+          <button onClick={btn.onClick}
             className="bg-red-600 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded transition-colors">
-            + Nuevo escenario
+            {btn.label}
           </button>
         </div>
       </header>
 
+      {/* Pestañas */}
+      <div className="print:hidden border-b border-gray-800 bg-gray-900">
+        <div className="max-w-4xl mx-auto px-6 flex gap-1">
+          {[
+            { key: "escenarios", label: "Escenarios" },
+            { key: "recursos", label: "Recursos" },
+            { key: "contactos", label: "Contactos" },
+          ].map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`text-sm px-4 py-2.5 border-b-2 transition-colors ${
+                tab === t.key
+                  ? "border-red-500 text-gray-100 font-semibold"
+                  : "border-transparent text-gray-500 hover:text-gray-300"
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-        {loading && <div className="text-center py-16 text-gray-600 text-sm">Cargando escenarios…</div>}
+        {loading && <div className="text-center py-16 text-gray-600 text-sm">Cargando…</div>}
         {error && !loading && <div className="bg-red-950 border border-red-800 text-red-300 rounded p-4 text-sm">⚠ {error}</div>}
 
-        {!loading && !error && escenarios.length === 0 && (
-          <div className="text-center py-16 text-gray-600 text-sm">
-            No hay escenarios de emergencia registrados todavía.
-          </div>
+        {/* ── PESTAÑA: ESCENARIOS ─────────────────────────────────────── */}
+        {!loading && !error && tab === "escenarios" && (
+          <>
+            {escenarios.length === 0 && (
+              <div className="text-center py-16 text-gray-600 text-sm">
+                No hay escenarios de emergencia registrados todavía.
+              </div>
+            )}
+            {Object.entries(escenariosPorArea).map(([areaNombre, lista]) => (
+              <section key={areaNombre}>
+                <h2 className="print:hidden text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">
+                  📍 {areaNombre}
+                </h2>
+                <div className="space-y-4">
+                  {lista.map(esc => (
+                    <EscenarioCard
+                      key={esc.id}
+                      escenario={esc}
+                      sedeNombre={sedes.find(s => s.id === esc.sedeId)?.nombre}
+                      nombrePorCas={nombrePorCas}
+                      onGuardarPasos={guardarPasosEscenario}
+                      onImprimir={imprimirEscenario}
+                      imprimiendo={imprimirId === esc.id}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </>
         )}
 
-        {!loading && !error && Object.entries(escenariosPorArea).map(([areaNombre, lista]) => (
-          <section key={areaNombre}>
-            <h2 className="print:hidden text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">
-              📍 {areaNombre}
-            </h2>
-            <div className="space-y-4">
-              {lista.map(esc => (
-                <EscenarioCard
-                  key={esc.id}
-                  escenario={esc}
-                  sedeNombre={sedes.find(s => s.id === esc.sedeId)?.nombre}
-                  nombrePorCas={nombrePorCas}
-                  onGuardarPasos={guardarPasosEscenario}
-                  onImprimir={imprimirEscenario}
-                  imprimiendo={imprimirId === esc.id}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
+        {/* ── PESTAÑA: RECURSOS ───────────────────────────────────────── */}
+        {!loading && !error && tab === "recursos" && (
+          <>
+            {recursos.length === 0 && (
+              <div className="text-center py-16 text-gray-600 text-sm">
+                No hay recursos de emergencia registrados todavía.
+              </div>
+            )}
+            {Object.entries(recursosPorGrupo).map(([grupo, lista]) => (
+              <section key={grupo}>
+                <h2 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">📍 {grupo}</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {lista.map(r => <RecursoCard key={r.id} recurso={r} />)}
+                </div>
+              </section>
+            ))}
+          </>
+        )}
+
+        {/* ── PESTAÑA: CONTACTOS ──────────────────────────────────────── */}
+        {!loading && !error && tab === "contactos" && (
+          <>
+            <section>
+              <h2 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">📌 Contactos del sistema</h2>
+              <div className="space-y-2">
+                <ContactoFijoCard icono="☎️" nombre="CISPROQUIM Colombia" cargo="Orientación toxicológica nacional 24/7" telefono={CISPROQUIM} />
+                <ContactoFijoCard icono="🚨" nombre="Emergencia Nacional" cargo="Línea única de emergencias" telefono={EMERGENCIA_NACIONAL} />
+              </div>
+            </section>
+
+            {Object.entries(contactosPorTipo).map(([tipo, lista]) => (
+              <section key={tipo}>
+                <h2 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">
+                  {TIPO_CONTACTO_ICONO[tipo] || "📞"} {TIPO_CONTACTO_LABEL[tipo] || tipo}
+                </h2>
+                <div className="space-y-2">
+                  {lista.map(c => (
+                    <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-100">{c.nombre}</p>
+                        <p className="text-xs text-gray-500">
+                          {c.cargo && `${c.cargo} · `}
+                          {c.sedeId ? (sedes.find(s => s.id === c.sedeId)?.nombre || "Sede") : "Toda la empresa"}
+                        </p>
+                      </div>
+                      <a href={`tel:${c.telefono}`} className="text-sm font-bold text-blue-400 whitespace-nowrap">{c.telefono}</a>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+
+            {contactos.length === 0 && (
+              <p className="text-xs text-gray-600">No hay contactos adicionales registrados.</p>
+            )}
+          </>
+        )}
       </main>
 
       {/* Modal: crear escenario */}
@@ -397,6 +651,136 @@ export default function EscenariosEmergenciaPage() {
         </div>
       )}
 
+      {/* Modal: crear recurso */}
+      {mostrarCrearRecurso && (
+        <div className="print:hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-gray-100 font-bold">Nuevo recurso de emergencia</h2>
+              <button onClick={() => setMostrarCrearRecurso(false)} className="text-gray-500 hover:text-gray-300">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Tipo</label>
+                <select value={formRecurso.tipo} onChange={e => handleFormRecurso("tipo", e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                  {Object.entries(TIPO_RECURSO_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>{TIPO_RECURSO_ICONO[k]} {v}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Ubicación</label>
+                <input type="text" value={formRecurso.ubicacion}
+                  onChange={e => handleFormRecurso("ubicacion", e.target.value)}
+                  placeholder="Ej: Pasillo bodega, junto a la puerta principal"
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Sede</label>
+                  <select value={formRecurso.sedeId} onChange={e => handleFormRecurso("sedeId", e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">Sin sede específica</option>
+                    {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Área</label>
+                  <input type="text" value={formRecurso.areaNombre}
+                    onChange={e => handleFormRecurso("areaNombre", e.target.value)}
+                    placeholder="Ej: Bodega"
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Última revisión</label>
+                  <input type="date" value={formRecurso.fechaUltimaRevision}
+                    onChange={e => handleFormRecurso("fechaUltimaRevision", e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Próxima revisión</label>
+                  <input type="date" value={formRecurso.proximaRevision}
+                    onChange={e => handleFormRecurso("proximaRevision", e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+              {errorRecurso && <p className="text-xs text-red-400">⚠ {errorRecurso}</p>}
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setMostrarCrearRecurso(false)} className="text-sm text-gray-400 hover:text-gray-200">
+                  Cancelar
+                </button>
+                <button onClick={guardarRecurso} disabled={guardandoRecurso}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-5 py-2 rounded transition-colors">
+                  {guardandoRecurso ? "Guardando…" : "Guardar recurso"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: crear contacto */}
+      {mostrarCrearContacto && (
+        <div className="print:hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-gray-100 font-bold">Nuevo contacto de emergencia</h2>
+              <button onClick={() => setMostrarCrearContacto(false)} className="text-gray-500 hover:text-gray-300">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Nombre</label>
+                <input type="text" value={formContacto.nombre}
+                  onChange={e => handleFormContacto("nombre", e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Cargo</label>
+                <input type="text" value={formContacto.cargo}
+                  onChange={e => handleFormContacto("cargo", e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Teléfono</label>
+                <input type="text" value={formContacto.telefono}
+                  onChange={e => handleFormContacto("telefono", e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Tipo</label>
+                <select value={formContacto.tipo} onChange={e => handleFormContacto("tipo", e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                  {Object.entries(TIPO_CONTACTO_LABEL).map(([k, v]) => (
+                    <option key={k} value={k}>{TIPO_CONTACTO_ICONO[k]} {v}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Sede</label>
+                <select value={formContacto.sedeId} onChange={e => handleFormContacto("sedeId", e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                  <option value="">Toda la empresa</option>
+                  {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+              </div>
+              {errorContacto && <p className="text-xs text-red-400">⚠ {errorContacto}</p>}
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setMostrarCrearContacto(false)} className="text-sm text-gray-400 hover:text-gray-200">
+                  Cancelar
+                </button>
+                <button onClick={guardarContacto} disabled={guardandoContacto}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-5 py-2 rounded transition-colors">
+                  {guardandoContacto ? "Guardando…" : "Guardar contacto"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @media print {
           body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -512,6 +896,46 @@ function EscenarioCard({ escenario, sedeNombre, nombrePorCas, onGuardarPasos, on
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Tarjeta de recurso de emergencia ───────────────────────────────────────
+function RecursoCard({ recurso }) {
+  const estado = estadoRevision(recurso.proximaRevision);
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-gray-100 flex items-center gap-2">
+          <span>{TIPO_RECURSO_ICONO[recurso.tipo] || "🧰"}</span> {TIPO_RECURSO_LABEL[recurso.tipo] || recurso.tipo}
+        </p>
+        {estado === "alerta" && (
+          <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+            ⚠ Revisión próxima/vencida
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-gray-400 mt-1">{recurso.ubicacion}</p>
+      <div className="text-[11px] text-gray-500 mt-2 space-y-0.5">
+        {recurso.fechaUltimaRevision && <p>Última revisión: {recurso.fechaUltimaRevision}</p>}
+        {recurso.proximaRevision && <p>Próxima revisión: {recurso.proximaRevision}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tarjeta de contacto fijo (CISPROQUIM / emergencia nacional) ───────────
+function ContactoFijoCard({ icono, nombre, cargo, telefono }) {
+  return (
+    <div className="bg-gray-900 border border-red-900/50 rounded-lg p-4 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <span className="text-xl">{icono}</span>
+        <div>
+          <p className="text-sm font-semibold text-gray-100">{nombre}</p>
+          <p className="text-xs text-gray-500">{cargo}</p>
+        </div>
+      </div>
+      <a href={`tel:${telefono}`} className="text-sm font-bold text-red-400 whitespace-nowrap">{telefono}</a>
     </div>
   );
 }
