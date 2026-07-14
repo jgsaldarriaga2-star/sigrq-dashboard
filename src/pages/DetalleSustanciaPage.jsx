@@ -94,6 +94,35 @@ function Campo({ label, value }) {
   );
 }
 
+function campoConValor(c) {
+  return c.value !== null && c.value !== undefined && c.value !== "";
+}
+
+// Solo renderiza los campos con valor real; si ninguno lo tiene, no
+// muestra nada (usado por las secciones opcionales de la FDS ampliada).
+function CamposFiltrados({ campos }) {
+  const visibles = campos.filter(campoConValor);
+  if (visibles.length === 0) return null;
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {visibles.map(c => <Campo key={c.label} label={c.label} value={c.value} />)}
+    </div>
+  );
+}
+
+// Envuelve una Seccion opcional de la FDS ampliada: si ningún campo tiene
+// valor y no hay children, no se muestra ni el título de la sección.
+function SeccionOpcional({ titulo, campos = [], children }) {
+  const hayCampos = campos.filter(campoConValor).length > 0;
+  if (!hayCampos && !children) return null;
+  return (
+    <Seccion titulo={titulo}>
+      <CamposFiltrados campos={campos} />
+      {children}
+    </Seccion>
+  );
+}
+
 function formatFecha(ts) {
   if (!ts) return "—";
   try {
@@ -592,6 +621,77 @@ export default function DetalleSustanciaPage() {
             </div>
           )}
         </Seccion>
+
+        {/* Composición — solo mezclas con componentes extraídos de la FDS (sección 3) */}
+        {fds.composicion?.es_mezcla && fds.composicion.componentes?.length > 0 && (
+          <Seccion titulo="Composición (Sección 3 FDS)">
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 py-2 text-left">Componente</th>
+                    <th className="px-3 py-2 text-left">CAS</th>
+                    <th className="px-3 py-2 text-right">% mín</th>
+                    <th className="px-3 py-2 text-right">% máx</th>
+                    <th className="px-3 py-2 text-left">Unidad</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {fds.composicion.componentes.map((c, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2 text-gray-800 font-medium">{c.nombre || "—"}</td>
+                      <td className="px-3 py-2 text-gray-500">{c.cas || "—"}</td>
+                      <td className="px-3 py-2 text-gray-500 text-right">{c.concentracion_min ?? "—"}</td>
+                      <td className="px-3 py-2 text-gray-500 text-right">{c.concentracion_max ?? "—"}</td>
+                      <td className="px-3 py-2 text-gray-500">{c.unidad || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Seccion>
+        )}
+
+        {/* Propiedades físico-químicas adicionales (Sección 9 FDS) */}
+        <SeccionOpcional titulo="Propiedades Físico-Químicas Adicionales" campos={[
+          { label: "Densidad relativa",  value: fds.densidad_relativa },
+          { label: "pH",                 value: fds.ph },
+          { label: "Viscosidad (mPa·s)", value: fds.viscosidad_mpa_s },
+          { label: "Olor",               value: fds.olor },
+          { label: "Color",              value: fds.color },
+        ]} />
+
+        {/* Transporte (Sección 14 FDS) */}
+        {fds.transporte && (
+          <SeccionOpcional titulo="Clasificación para Transporte" campos={[
+            { label: "Número ONU",              value: fds.transporte.numero_onu },
+            { label: "Designación oficial",     value: fds.transporte.designacion_oficial },
+            { label: "Clase de peligro",        value: fds.transporte.clase_peligro },
+            { label: "Grupo de embalaje",       value: fds.transporte.grupo_embalaje },
+            { label: "Peligros ambientales",    value: fds.transporte.peligros_ambientales === null || fds.transporte.peligros_ambientales === undefined ? null : (fds.transporte.peligros_ambientales ? "Sí" : "No") },
+          ]} />
+        )}
+
+        {/* Datos toxicológicos (Sección 11 FDS) */}
+        {fds.toxicologia && (
+          <SeccionOpcional titulo="Datos Toxicológicos" campos={[
+            { label: "DL50 oral (mg/kg)",       value: fds.toxicologia.dl50_oral_mg_kg },
+            { label: "CL50 inhalatoria",        value: fds.toxicologia.cl50_inhalatoria },
+            { label: "Efectos exposición aguda",  value: fds.toxicologia.efectos_agudos },
+            { label: "Efectos exposición crónica", value: fds.toxicologia.efectos_cronicos },
+          ]}>
+            {fds.toxicologia.organos_diana?.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-gray-500 mb-1">Órganos diana</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {fds.toxicologia.organos_diana.map((o, i) => (
+                    <span key={i} className="bg-red-50 text-red-700 text-xs px-2 py-0.5 rounded border border-red-100 capitalize">{o}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </SeccionOpcional>
+        )}
 
         {/* Condiciones de uso */}
         <Seccion titulo="Condiciones de Uso">

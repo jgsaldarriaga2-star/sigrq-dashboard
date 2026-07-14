@@ -45,6 +45,19 @@ const [campos, setCampos] = useState(camposVacios);
   const [limitAlcanzado, setLimitAlcanzado] = useState(false);
   const [componentesMezcla, setComponentesMezcla] = useState([]);
   const [idMezclaGenerado, setIdMezclaGenerado] = useState(null);
+  // Secciones adicionales de la FDS extraídas por IA (composición, sección 9
+  // extendida, transporte, toxicología) — solo lectura/paso a Firestore, sin
+  // campos de formulario propios; se muestran en DetalleSustanciaPage.jsx.
+  const [datosExtendidosFDS, setDatosExtendidosFDS] = useState({
+    densidad_relativa: null,
+    ph: null,
+    viscosidad_mpa_s: null,
+    olor: null,
+    color: null,
+    composicion: null,
+    transporte: null,
+    toxicologia: null,
+  });
   const navigate = useNavigate();
 
   const [sedes, setSedes] = useState([]);
@@ -167,6 +180,17 @@ useEffect(() => {
   fds_fecha_emision:       data.fds_fecha_emision      || null,
 }));
 
+setDatosExtendidosFDS({
+  densidad_relativa: data.densidad_relativa ?? null,
+  ph:                data.ph                ?? null,
+  viscosidad_mpa_s:  data.viscosidad_mpa_s   ?? null,
+  olor:              data.olor               ?? null,
+  color:             data.color              ?? null,
+  composicion:       data.composicion        ?? null,
+  transporte:        data.transporte         ?? null,
+  toxicologia:       data.toxicologia        ?? null,
+});
+
 // ── Pre-llenar nanomateriales si la IA detectó nano en la FDS ──────────
 if (data.nano_ia?.contiene_nanomaterial) {
   const n = data.nano_ia;
@@ -245,6 +269,14 @@ if (data.nano_ia?.contiene_nanomaterial) {
   nano_params: nanoData.esNanomaterial ? nanoData.nano_params : null,
   tipo_producto:           campos.tipo_producto        || "materia_prima",
   componentes_mezcla:      componentesLimpios,
+  densidad_relativa:       datosExtendidosFDS.densidad_relativa,
+  ph:                      datosExtendidosFDS.ph,
+  viscosidad_mpa_s:        datosExtendidosFDS.viscosidad_mpa_s,
+  olor:                    datosExtendidosFDS.olor,
+  color:                   datosExtendidosFDS.color,
+  composicion:             datosExtendidosFDS.composicion,
+  transporte:              datosExtendidosFDS.transporte,
+  toxicologia:             datosExtendidosFDS.toxicologia,
 },
  uso: {
   area:              campos.uso                    || null,
