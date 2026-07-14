@@ -17,6 +17,13 @@ import {
   GRUPOS_LABEL,
   NIVEL_LABEL as ALMACEN_NIVEL_LABEL,
 } from "../utils/almacenamiento";
+import { FRASES_H } from "../utils/frasesH";
+
+const TIPO_PRODUCTO_LABEL = {
+  materia_prima:       "Materia prima",
+  producto_terminado:  "Producto terminado",
+  mezcla:              "Mezcla / formulación propia",
+};
 
 const NIVEL_LABEL = { 1: "Bajo", 2: "Moderado", 3: "Alto", 4: "Muy Alto" };
 const NIVEL_COLOR = {
@@ -506,6 +513,7 @@ export default function DetalleSustanciaPage() {
         {/* Datos FDS */}
         <Seccion titulo="Ficha de Datos de Seguridad">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            <Campo label="Tipo de producto"  value={TIPO_PRODUCTO_LABEL[fds.tipo_producto] ?? null} />
             <Campo label="Estado físico"     value={fds.estado_fisico} />
             <Campo label="OEL (ppm)"         value={fds.oel_ppm} />
             <Campo label="OEL (mg/m³)"       value={fds.oel_mg_m3} />
@@ -515,6 +523,35 @@ export default function DetalleSustanciaPage() {
             <Campo label="Presión de vapor"  value={fds.presion_vapor_kpa ? `${fds.presion_vapor_kpa} kPa` : null} />
             <Campo label="FDS caduca"        value={ev.fds_caducidad} />
           </div>
+
+          {fds.tipo_producto === "mezcla" && fds.componentes_mezcla?.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs text-gray-500 mb-1">Componentes de la mezcla</p>
+              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-2 text-left">Componente</th>
+                      <th className="px-3 py-2 text-left">CAS</th>
+                      <th className="px-3 py-2 text-right">% mín</th>
+                      <th className="px-3 py-2 text-right">% máx</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {fds.componentes_mezcla.map((c, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-gray-800 font-medium">{c.nombre || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500">{c.cas || "—"}</td>
+                        <td className="px-3 py-2 text-gray-500 text-right">{c.concentracion_min ?? "—"}</td>
+                        <td className="px-3 py-2 text-gray-500 text-right">{c.concentracion_max ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {fds.pictogramas_ghs?.length > 0 && (
             <div className="mb-3">
               <p className="text-xs text-gray-500 mb-1">Pictogramas GHS</p>
@@ -531,9 +568,12 @@ export default function DetalleSustanciaPage() {
           {fds.frases_h?.length > 0 && (
             <div className="mb-3">
               <p className="text-xs text-gray-500 mb-1">Frases H (peligro salud)</p>
-              <div className="flex flex-wrap gap-1">
+              <div className="space-y-1">
                 {fds.frases_h.map(f => (
-                  <span key={f} className="bg-red-50 text-red-700 text-xs px-2 py-0.5 rounded border border-red-100">{f}</span>
+                  <div key={f} className="flex items-start gap-2 bg-red-50 text-red-700 text-xs px-2 py-1.5 rounded border border-red-100">
+                    <span className="font-bold whitespace-nowrap">{f}</span>
+                    <span className="text-red-600">{FRASES_H[f] || "Descripción no disponible"}</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -541,9 +581,12 @@ export default function DetalleSustanciaPage() {
           {fds.frases_h_fisicoquimicas?.length > 0 && (
             <div>
               <p className="text-xs text-gray-500 mb-1">Frases H (fisicoquímicas)</p>
-              <div className="flex flex-wrap gap-1">
+              <div className="space-y-1">
                 {fds.frases_h_fisicoquimicas.map(f => (
-                  <span key={f} className="bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded border border-orange-100">{f}</span>
+                  <div key={f} className="flex items-start gap-2 bg-orange-50 text-orange-700 text-xs px-2 py-1.5 rounded border border-orange-100">
+                    <span className="font-bold whitespace-nowrap">{f}</span>
+                    <span className="text-orange-600">{FRASES_H[f] || "Descripción no disponible"}</span>
+                  </div>
                 ))}
               </div>
             </div>

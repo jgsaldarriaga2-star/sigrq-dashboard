@@ -14,7 +14,10 @@ const camposVacios = {
   vla_ppm: "", vla_mgm3: "", cantidad_uso: "",
   duracion_exposicion: "", frecuencia_uso: "",
   contacto_piel: false, area_contacto: "", duracion_contacto: "",
+  tipo_producto: "materia_prima",
 };
+
+const componenteVacio = { nombre: "", cas: "", concMin: "", concMax: "" };
 
 export default function NuevaSustanciaPage() {
   const { empresaId } = useAuth();
@@ -40,6 +43,8 @@ const [campos, setCampos] = useState(camposVacios);
 });
   const [planInfo, setPlanInfo] = useState(null);
   const [limitAlcanzado, setLimitAlcanzado] = useState(false);
+  const [componentesMezcla, setComponentesMezcla] = useState([]);
+  const [idMezclaGenerado, setIdMezclaGenerado] = useState(null);
   const navigate = useNavigate();
 
   const [sedes, setSedes] = useState([]);
@@ -86,6 +91,28 @@ useEffect(() => {
 }
   setCampos(prev => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
 }
+
+  function agregarComponente() {
+    setComponentesMezcla(prev => [...prev, { ...componenteVacio }]);
+  }
+  function actualizarComponente(index, field, value) {
+    setComponentesMezcla(prev => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)));
+  }
+  function eliminarComponente(index) {
+    setComponentesMezcla(prev => prev.filter((_, i) => i !== index));
+  }
+
+  // Genera un identificador interno MIX-{año}-{secuencial} para mezclas sin
+  // CAS propio, contando las mezclas ya registradas en la empresa con el
+  // mismo prefijo de año.
+  async function generarIdMezcla() {
+    const anio = new Date().getFullYear();
+    const prefijo = `MIX-${anio}-`;
+    const snap = await getDocs(collection(db, "empresas", empresaId, "sustancias"));
+    const existentes = snap.docs.filter(d => (d.data()?.fds?.numero_cas || "").startsWith(prefijo));
+    const siguiente = existentes.length + 1;
+    return `${prefijo}${String(siguiente).padStart(3, "0")}`;
+  }
 
   async function extraerDesdePDF(e) {
   const file = e.target.files[0];
@@ -168,8 +195,27 @@ if (data.nano_ia?.contiene_nanomaterial) {
     setError("");
     setEvaluando(true);
     setResultado(null);
+    setIdMezclaGenerado(null);
 
     try {
+      let casFinal = campos.cas;
+      if (campos.tipo_producto === "mezcla" && !campos.cas?.trim()) {
+        casFinal = await generarIdMezcla();
+        setIdMezclaGenerado(casFinal);
+        setCampos(prev => ({ ...prev, cas: casFinal }));
+      }
+
+      const componentesLimpios = campos.tipo_producto === "mezcla"
+        ? componentesMezcla
+            .filter(c => c.nombre.trim())
+            .map(c => ({
+              nombre: c.nombre.trim(),
+              cas: c.cas.trim() || null,
+              concentracion_min: c.concMin !== "" ? parseFloat(c.concMin) : null,
+              concentracion_max: c.concMax !== "" ? parseFloat(c.concMax) : null,
+            }))
+        : [];
+
       const token = await auth.currentUser.getIdToken();
       console.log("fds_fecha_emision enviada:", campos.fds_fecha_emision);
       const res = await fetch(EVALUAR_URL, {
@@ -183,7 +229,7 @@ if (data.nano_ia?.contiene_nanomaterial) {
   fds: {
   nombre_comercial:        campos.nombre              || null,
   nombre_quimico:          campos.nombre              || null,
-  numero_cas:              campos.cas                 || null,
+  numero_cas:              casFinal                   || null,
   fds_fecha_emision:       campos.fds_fecha_emision   || null,
   estado_fisico:           campos.estado_fisico         || "liquido",
   presion_vapor_kpa:       parseFloat(campos.presion_vapor_kPa) || null,
@@ -197,6 +243,8 @@ if (data.nano_ia?.contiene_nanomaterial) {
   punto_inflamacion_c:     campos.punto_inflamacion_c  || null,
   temperatura_ignicion_c:  campos.temperatura_ignicion_c || null,
   nano_params: nanoData.esNanomaterial ? nanoData.nano_params : null,
+  tipo_producto:           campos.tipo_producto        || "materia_prima",
+  componentes_mezcla:      componentesLimpios,
 },
  uso: {
   area:              campos.uso                    || null,
@@ -272,6 +320,19 @@ if (data.nano_ia?.contiene_nanomaterial) {
             <Campo label="CAS" name="cas" value={campos.cas} onChange={handleCampo} />
             <Campo label="Fabricante" name="fabricante" value={campos.fabricante} onChange={handleCampo} />
             <div>
+  <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de producto</label>
+  <select
+    name="tipo_producto"
+    value={campos.tipo_producto}
+    onChange={handleCampo}
+    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+  >
+    <option value="materia_prima">Materia prima</option>
+    <option value="producto_terminado">Producto terminado</option>
+    <option value="mezcla">Mezcla / formulación propia</option>
+  </select>
+</div>
+            <div>
   <label className="block text-xs font-medium text-gray-600 mb-1">Área / Proceso</label>
   <select
   name="uso"
@@ -327,6 +388,62 @@ if (data.nano_ia?.contiene_nanomaterial) {
   </select>
 </div>
           </div>
+
+          {/* Componentes de la mezcla — solo si tipo_producto === "mezcla" */}
+          {campos.tipo_producto === "mezcla" && (
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">Componentes de la mezcla</h3>
+                <button type="button" onClick={agregarComponente}
+                  className="text-xs text-blue-600 hover:underline">
+                  + Agregar componente
+                </button>
+              </div>
+
+              {componentesMezcla.length === 0 && (
+                <p className="text-xs text-gray-400">Agrega los componentes de la mezcla y su rango de concentración.</p>
+              )}
+
+              {componentesMezcla.map((c, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-4">
+                    <label className="block text-[11px] text-gray-500 mb-1">Componente</label>
+                    <input type="text" value={c.nombre}
+                      onChange={e => actualizarComponente(i, "nombre", e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="block text-[11px] text-gray-500 mb-1">CAS</label>
+                    <input type="text" value={c.cas}
+                      onChange={e => actualizarComponente(i, "cas", e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] text-gray-500 mb-1">% mín</label>
+                    <input type="number" value={c.concMin}
+                      onChange={e => actualizarComponente(i, "concMin", e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] text-gray-500 mb-1">% máx</label>
+                    <input type="number" value={c.concMax}
+                      onChange={e => actualizarComponente(i, "concMax", e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div className="col-span-1 flex justify-center pb-1.5">
+                    <button type="button" onClick={() => eliminarComponente(i)}
+                      className="text-gray-400 hover:text-red-500 transition-colors" title="Eliminar componente">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              <p className="text-xs text-gray-400">
+                Si no ingresas un número CAS arriba, se generará un identificador interno automático (formato MIX-{new Date().getFullYear()}-###).
+              </p>
+            </div>
+          )}
 
           {/* Piel */}
           <div className="border-t pt-4 space-y-3">
@@ -393,6 +510,13 @@ if (data.nano_ia?.contiene_nanomaterial) {
                 📲 Actualizar plan
               </a>
             )}
+          </div>
+        )}
+
+        {/* ID interno de mezcla generado automáticamente */}
+        {idMezclaGenerado && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 text-sm px-4 py-3 rounded-xl">
+            ℹ️ Identificador interno asignado: <span className="font-bold">{idMezclaGenerado}</span>
           </div>
         )}
 
