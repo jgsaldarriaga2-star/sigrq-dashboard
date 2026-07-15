@@ -17,6 +17,7 @@ import { useAuth } from "../context/AuthContext";
 import { GHSPictograma } from "../components/PictogramaGHS";
 import { clasificarAlmacenamiento, evaluarCompatibilidad, NIVEL_LABEL as ALMACEN_NIVEL_LABEL } from "../utils/almacenamiento";
 import { derivarEmergencias } from "../utils/emergencia";
+import { etiquetaCas } from "../utils/cas";
 
 const CISPROQUIM = "01 8000 916012";
 const EMERGENCIA_NACIONAL = "123";
@@ -116,7 +117,7 @@ export default function FichaEmergenciaPage() {
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-red-600">Ficha de Emergencia Química</p>
               <h1 className="text-xl font-bold text-gray-900 mt-1">{nombre}</h1>
-              {cas && <p className="text-sm text-gray-500">CAS: {cas}</p>}
+              {cas && <p className="text-sm text-gray-500">{etiquetaCas(cas, fds.tipo_producto)}: {cas}</p>}
             </div>
             <div className="flex gap-1.5 flex-wrap justify-end max-w-40">
               {(fds.pictogramas_ghs || []).map(p => (

@@ -22,6 +22,7 @@ import { db } from "../services/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { etiquetaCas } from "../utils/cas";
 
 const STORAGE_KEY = "sigrq_panel_prioridades_abierto";
 const LIMITE_VISIBLE = 10;
@@ -213,7 +214,7 @@ export default function PanelPrioridadesSede() {
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-gray-800 truncate">{nombre}</p>
                             <p className="text-xs text-gray-400">
-                              {cas && <>CAS {cas} · </>}
+                              {cas && <>{etiquetaCas(cas, fds.tipo_producto)} {cas} · </>}
                               {area || "Sin área"}
                             </p>
                           </div>

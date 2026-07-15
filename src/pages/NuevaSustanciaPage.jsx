@@ -19,6 +19,12 @@ const camposVacios = {
 
 const componenteVacio = { nombre: "", cas: "", concMin: "", concMax: "" };
 
+function etiquetaNombre(tipoProducto) {
+  if (tipoProducto === "producto_terminado") return "Nombre del producto";
+  if (tipoProducto === "mezcla_sin_fds") return "Nombre comercial o código interno";
+  return "Nombre de la sustancia";
+}
+
 export default function NuevaSustanciaPage() {
   const { empresaId } = useAuth();
 const [campos, setCampos] = useState(camposVacios);
@@ -223,13 +229,13 @@ if (data.nano_ia?.contiene_nanomaterial) {
 
     try {
       let casFinal = campos.cas;
-      if (campos.tipo_producto === "mezcla" && !campos.cas?.trim()) {
+      if (campos.tipo_producto === "mezcla_sin_fds" && !campos.cas?.trim()) {
         casFinal = await generarIdMezcla();
         setIdMezclaGenerado(casFinal);
         setCampos(prev => ({ ...prev, cas: casFinal }));
       }
 
-      const componentesLimpios = campos.tipo_producto === "mezcla"
+      const componentesLimpios = campos.tipo_producto === "mezcla_sin_fds"
         ? componentesMezcla
             .filter(c => c.nombre.trim())
             .map(c => ({
@@ -329,10 +335,20 @@ if (data.nano_ia?.contiene_nanomaterial) {
         {/* Upload FDS */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h2 className="font-semibold text-gray-700 mb-3">1. Cargar FDS (PDF)</h2>
-          <label className="flex flex-col items-center justify-center border-2 border-dashed border-blue-300 rounded-xl p-8 cursor-pointer hover:bg-blue-50 transition">
+          <label className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-8 cursor-pointer transition ${
+            campos.tipo_producto === "mezcla_sin_fds"
+              ? "border-gray-300 hover:bg-gray-50"
+              : "border-blue-300 hover:bg-blue-50"
+          }`}>
             <span className="text-3xl mb-2">📄</span>
             <span className="text-sm text-gray-500">
-              {extrayendo ? "Extrayendo información..." : archivo ? archivo.name : "Haz clic para seleccionar el PDF de la FDS"}
+              {extrayendo
+                ? "Extrayendo información..."
+                : archivo
+                ? archivo.name
+                : campos.tipo_producto === "mezcla_sin_fds"
+                ? "Opcional — sube la FDS si la tienes"
+                : "Haz clic para seleccionar el PDF de la FDS"}
             </span>
             <input type="file" accept="application/pdf" className="hidden" onChange={extraerDesdePDF} />
           </label>
@@ -348,10 +364,7 @@ if (data.nano_ia?.contiene_nanomaterial) {
           <h2 className="font-semibold text-gray-700">2. Datos de la sustancia</h2>
 
           <div className="grid grid-cols-2 gap-4">
-            <Campo label="Nombre" name="nombre" value={campos.nombre} onChange={handleCampo} />
-            <Campo label="CAS" name="cas" value={campos.cas} onChange={handleCampo} />
-            <Campo label="Fabricante" name="fabricante" value={campos.fabricante} onChange={handleCampo} />
-            <div>
+            <div className="col-span-2">
   <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de producto</label>
   <select
     name="tipo_producto"
@@ -359,11 +372,24 @@ if (data.nano_ia?.contiene_nanomaterial) {
     onChange={handleCampo}
     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
   >
-    <option value="materia_prima">Materia prima</option>
-    <option value="producto_terminado">Producto terminado</option>
-    <option value="mezcla">Mezcla / formulación propia</option>
+    <option value="materia_prima">Materia prima — con FDS de proveedor</option>
+    <option value="producto_terminado">Producto terminado — con FDS propia</option>
+    <option value="mezcla_sin_fds">Mezcla / formulación propia — sin FDS de proveedor</option>
   </select>
 </div>
+            <Campo label={etiquetaNombre(campos.tipo_producto)} name="nombre" value={campos.nombre} onChange={handleCampo} />
+            {campos.tipo_producto === "mezcla_sin_fds" ? (
+              <Campo
+                label="Código interno (opcional)"
+                name="cas"
+                value={campos.cas}
+                onChange={handleCampo}
+                placeholder={`Se genera automáticamente si lo dejas vacío (MIX-${new Date().getFullYear()}-###)`}
+              />
+            ) : (
+              <Campo label="Número CAS" name="cas" value={campos.cas} onChange={handleCampo} />
+            )}
+            <Campo label="Fabricante" name="fabricante" value={campos.fabricante} onChange={handleCampo} />
             <div>
   <label className="block text-xs font-medium text-gray-600 mb-1">Área / Proceso</label>
   <select
@@ -383,46 +409,11 @@ if (data.nano_ia?.contiene_nanomaterial) {
 })}
   </select>
 </div>
-            <Campo label="Estado físico" name="estado_fisico" value={campos.estado_fisico} onChange={handleCampo} />
-            <Campo label="Presión de vapor (kPa)" name="presion_vapor_kPa" value={campos.presion_vapor_kPa} onChange={handleCampo} type="number" />
-            <Campo label="Punto de ebullición (°C)" name="punto_ebullicion" value={campos.punto_ebullicion} onChange={handleCampo} type="number" />
-            <Campo label="VLA-EC (ppm)" name="vla_ppm" value={campos.vla_ppm} onChange={handleCampo} type="number" />
-            <Campo label="VLA-EC (mg/m³)" name="vla_mgm3" value={campos.vla_mgm3} onChange={handleCampo} type="number" />
-            <Campo label="Cantidad de uso (L o kg)" name="cantidad_uso" value={campos.cantidad_uso} onChange={handleCampo} type="number" />
-            <div>
-  <label className="block text-xs font-medium text-gray-600 mb-1">Duración de exposición</label>
-  <select
-    name="duracion_exposicion"
-    value={campos.duracion_exposicion}
-    onChange={handleCampo}
-    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-  >
-    <option value="">Seleccionar…</option>
-    <option value="corta">Corta — menos de 30 min/día</option>
-    <option value="media">Media — entre 30 y 120 min/día</option>
-    <option value="larga">Larga — más de 120 min/día</option>
-  </select>
-</div>
-
-<div>
-  <label className="block text-xs font-medium text-gray-600 mb-1">Frecuencia de uso</label>
-  <select
-    name="frecuencia_uso"
-    value={campos.frecuencia_uso}
-    onChange={handleCampo}
-    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-  >
-    <option value="">Seleccionar…</option>
-    <option value="diaria">Diaria — todos los días</option>
-    <option value="semanal">Semanal — 2 a 3 veces por semana</option>
-    <option value="ocasional">Ocasional — menos de una vez por semana</option>
-    <option value="esporadica">Esporádica — pocas veces al año</option>
-  </select>
-</div>
           </div>
 
-          {/* Componentes de la mezcla — solo si tipo_producto === "mezcla" */}
-          {campos.tipo_producto === "mezcla" && (
+          {/* Componentes de la mezcla — solo si tipo_producto === "mezcla_sin_fds",
+              entre Área/Proceso y los campos técnicos (Estado físico, etc.) */}
+          {campos.tipo_producto === "mezcla_sin_fds" && (
             <div className="border-t pt-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-700">Componentes de la mezcla</h3>
@@ -476,6 +467,45 @@ if (data.nano_ia?.contiene_nanomaterial) {
               </p>
             </div>
           )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <Campo label="Estado físico" name="estado_fisico" value={campos.estado_fisico} onChange={handleCampo} />
+            <Campo label="Presión de vapor (kPa)" name="presion_vapor_kPa" value={campos.presion_vapor_kPa} onChange={handleCampo} type="number" />
+            <Campo label="Punto de ebullición (°C)" name="punto_ebullicion" value={campos.punto_ebullicion} onChange={handleCampo} type="number" />
+            <Campo label="VLA-EC (ppm)" name="vla_ppm" value={campos.vla_ppm} onChange={handleCampo} type="number" />
+            <Campo label="VLA-EC (mg/m³)" name="vla_mgm3" value={campos.vla_mgm3} onChange={handleCampo} type="number" />
+            <Campo label="Cantidad de uso (L o kg)" name="cantidad_uso" value={campos.cantidad_uso} onChange={handleCampo} type="number" />
+            <div>
+  <label className="block text-xs font-medium text-gray-600 mb-1">Duración de exposición</label>
+  <select
+    name="duracion_exposicion"
+    value={campos.duracion_exposicion}
+    onChange={handleCampo}
+    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+  >
+    <option value="">Seleccionar…</option>
+    <option value="corta">Corta — menos de 30 min/día</option>
+    <option value="media">Media — entre 30 y 120 min/día</option>
+    <option value="larga">Larga — más de 120 min/día</option>
+  </select>
+</div>
+
+<div>
+  <label className="block text-xs font-medium text-gray-600 mb-1">Frecuencia de uso</label>
+  <select
+    name="frecuencia_uso"
+    value={campos.frecuencia_uso}
+    onChange={handleCampo}
+    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+  >
+    <option value="">Seleccionar…</option>
+    <option value="diaria">Diaria — todos los días</option>
+    <option value="semanal">Semanal — 2 a 3 veces por semana</option>
+    <option value="ocasional">Ocasional — menos de una vez por semana</option>
+    <option value="esporadica">Esporádica — pocas veces al año</option>
+  </select>
+</div>
+          </div>
 
           {/* Piel */}
           <div className="border-t pt-4 space-y-3">
@@ -576,7 +606,7 @@ if (data.nano_ia?.contiene_nanomaterial) {
 }
 
 // ─── Componente Campo ────────────────────────────────────────────────────────
-function Campo({ label, name, value, onChange, type = "text" }) {
+function Campo({ label, name, value, onChange, type = "text", placeholder }) {
   return (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
@@ -585,6 +615,7 @@ function Campo({ label, name, value, onChange, type = "text" }) {
         name={name}
         value={value}
         onChange={onChange}
+        placeholder={placeholder}
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
       />
     </div>

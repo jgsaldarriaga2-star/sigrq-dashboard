@@ -7,6 +7,7 @@ import { collection, query, where, orderBy, getDocs, deleteDoc, doc } from "fire
 import { db } from "../services/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { etiquetaCas } from "../utils/cas";
 
 // ─── Helpers de riesgo ──────────────────────────────────────────────────────
 
@@ -347,7 +348,7 @@ if (role === "operario" && sedeId) {
                         {s.evaluacion?.sustancia ?? s.evaluacion?.nombre ?? s.nombre ?? "Sin nombre"}
                       </div>
                       {(s.evaluacion?.cas ?? s.cas) && (
-  <div className="text-gray-400 text-xs mt-0.5">CAS {s.evaluacion?.cas ?? s.cas}</div>
+  <div className="text-gray-400 text-xs mt-0.5">{etiquetaCas(s.evaluacion?.cas ?? s.cas, s.fds?.tipo_producto)} {s.evaluacion?.cas ?? s.cas}</div>
 )}
                     </td>
 

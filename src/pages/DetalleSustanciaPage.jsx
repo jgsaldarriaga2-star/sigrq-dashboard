@@ -18,11 +18,13 @@ import {
   NIVEL_LABEL as ALMACEN_NIVEL_LABEL,
 } from "../utils/almacenamiento";
 import { FRASES_H } from "../utils/frasesH";
+import { etiquetaCas } from "../utils/cas";
 
 const TIPO_PRODUCTO_LABEL = {
   materia_prima:       "Materia prima",
   producto_terminado:  "Producto terminado",
-  mezcla:              "Mezcla / formulación propia",
+  mezcla_sin_fds:      "Mezcla / formulación propia",
+  mezcla:              "Mezcla / formulación propia", // valor legado, antes de renombrar a mezcla_sin_fds
 };
 
 const NIVEL_LABEL = { 1: "Bajo", 2: "Moderado", 3: "Alto", 4: "Muy Alto" };
@@ -426,7 +428,7 @@ export default function DetalleSustanciaPage() {
         {/* Sustancia */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 print:text-xl">{ev.sustancia ?? fds.nombre_comercial ?? "Sin nombre"}</h1>
-          {ev.cas && <p className="text-sm text-gray-500 mt-1">CAS: {ev.cas}</p>}
+          {ev.cas && <p className="text-sm text-gray-500 mt-1">{etiquetaCas(ev.cas, fds.tipo_producto)}: {ev.cas}</p>}
           {estadoFds === "vencida" && (
             <div className="mt-3 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg">
               ⚠ FDS vencida desde {ev.fds_caducidad} — solicitar versión actualizada al proveedor
@@ -553,7 +555,7 @@ export default function DetalleSustanciaPage() {
             <Campo label="FDS caduca"        value={ev.fds_caducidad} />
           </div>
 
-          {fds.tipo_producto === "mezcla" && fds.componentes_mezcla?.length > 0 && (
+          {(fds.tipo_producto === "mezcla_sin_fds" || fds.tipo_producto === "mezcla") && fds.componentes_mezcla?.length > 0 && (
             <div className="mb-4">
               <p className="text-xs text-gray-500 mb-1">Componentes de la mezcla</p>
               <div className="rounded-lg border border-gray-200 overflow-hidden">

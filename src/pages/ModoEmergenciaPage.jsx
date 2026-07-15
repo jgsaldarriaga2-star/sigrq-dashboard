@@ -22,6 +22,7 @@ import { db } from "../services/firebase";
 import { GHSPictograma } from "../components/PictogramaGHS";
 import { derivarEmergencias, TIPO_EMERGENCIA_LABEL } from "../utils/emergencia";
 import { TIPO_ICONO } from "../utils/escenariosEmergencia";
+import { etiquetaCas } from "../utils/cas";
 
 const CISPROQUIM = "01 8000 916012";
 const EMERGENCIA_NACIONAL = "123";
@@ -236,7 +237,7 @@ function SustanciaCard({ sustancia, expandido, onToggle }) {
         <div className="min-w-0">
           <p className="font-bold text-base truncate">{nombre}</p>
           <p className="text-xs text-gray-500">
-            {cas ? `CAS ${cas}` : ""}{area ? ` · ${area}` : ""}
+            {cas ? `${etiquetaCas(cas, fds.tipo_producto)} ${cas}` : ""}{area ? ` · ${area}` : ""}
           </p>
           {emergencias.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
