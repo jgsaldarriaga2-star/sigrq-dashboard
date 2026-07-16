@@ -64,14 +64,16 @@ function formatTs(ts) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function ReporteCumplimientoPage() {
-  const { empresaId, role } = useAuth();
+  const { empresaId, role, sedeId } = useAuth();
   const navigate = useNavigate();
 
   const [sustancias, setSustancias] = useState([]);
   const [sedes, setSedes] = useState([]);
   const [empresa, setEmpresa] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [filtroSede, setFiltroSede] = useState("todas");
+  // coordinador_hse arranca con su propia sede pre-seleccionada, igual que
+  // en InventarioPage.jsx — sigue siendo un filtro normal, puede cambiarlo.
+  const [filtroSede, setFiltroSede] = useState(() => (role === "coordinador_hse" && sedeId) ? sedeId : "todas");
 
   useEffect(() => {
     if (!empresaId) return;

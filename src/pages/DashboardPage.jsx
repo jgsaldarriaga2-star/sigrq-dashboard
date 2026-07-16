@@ -37,8 +37,8 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Panel de Prioridades por Sede — admin, coordinador_hse, superadmin */}
-        {(esAdmin || esCoordinador || esSuperAdmin) && <PanelPrioridadesSede />}
+        {/* Panel de Prioridades por Sede — admin, coordinador_hse (no superadmin) */}
+        {(esAdmin || esCoordinador) && <PanelPrioridadesSede />}
 
         {/* ── SUPERADMIN ─────────────────────────────────────────── */}
         {esSuperAdmin && (
@@ -72,8 +72,8 @@ export default function DashboardPage() {
                 onClick={() => navigate("/areas")} />
             )}
 
-            {/* Sedes — admin y coordinador */}
-            {(esAdmin || esCoordinador) && (
+            {/* Sedes — solo admin */}
+            {esAdmin && (
               <Boton icono="🏗️" titulo="Sedes" desc="Gestionar sedes o plantas"
                 onClick={() => navigate("/sedes")} />
             )}

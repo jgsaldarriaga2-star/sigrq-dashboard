@@ -70,7 +70,7 @@ function estadoRevision(proximaRevision) {
 }
 
 export default function EscenariosEmergenciaPage() {
-  const { empresaId } = useAuth();
+  const { empresaId, role, sedeId } = useAuth();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState("escenarios"); // "escenarios" | "recursos" | "contactos"
@@ -292,9 +292,17 @@ export default function EscenariosEmergenciaPage() {
     setEscenarios(prev => prev.map(e => e.id === id ? { ...e, pasos: pasosLimpios } : e));
   }
 
+  // coordinador_hse con sede asignada solo ve los escenarios de su sede.
+  const escenariosVisibles = useMemo(() => {
+    if (role === "coordinador_hse" && sedeId) {
+      return escenarios.filter(e => e.sedeId === sedeId);
+    }
+    return escenarios;
+  }, [escenarios, role, sedeId]);
+
   const escenariosPorArea = useMemo(() => {
     const grupos = {};
-    for (const e of escenarios) {
+    for (const e of escenariosVisibles) {
       const sedeNombre = sedes.find(s => s.id === e.sedeId)?.nombre;
       const key = e.areaNombre
         ? (sedeNombre ? `${e.areaNombre} — ${sedeNombre}` : e.areaNombre)
@@ -303,7 +311,7 @@ export default function EscenariosEmergenciaPage() {
       grupos[key].push(e);
     }
     return grupos;
-  }, [escenarios, sedes]);
+  }, [escenariosVisibles, sedes]);
 
   // ── Recursos: creación ────────────────────────────────────────────────
   function abrirCrearRecurso() {
@@ -448,24 +456,30 @@ export default function EscenariosEmergenciaPage() {
         </div>
       </div>
 
-      {/* Modo Emergencia Móvil — QR por sede, visible en cualquier pestaña */}
+      {/* Modo Emergencia Móvil — QR por sede, visible en cualquier pestaña.
+          coordinador_hse con sede asignada solo ve el botón de su sede. */}
       {!loading && !error && (
         <div className="print:hidden max-w-4xl mx-auto px-6 pt-6">
-          {sedes.length === 0 ? (
-            <p className="text-xs text-gray-600">
-              Crea al menos una sede en <button onClick={() => navigate("/sedes")} className="text-blue-400 hover:underline">Gestión de Sedes</button> para generar códigos QR de Modo Emergencia Móvil.
-            </p>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-gray-500 uppercase tracking-wide">📱 QR Modo Emergencia:</span>
-              {sedes.map(s => (
-                <button key={s.id} onClick={() => setSedeQR(s)}
-                  className="text-xs bg-gray-900 border border-gray-700 hover:border-red-500 text-gray-300 px-3 py-1.5 rounded transition-colors">
-                  {s.nombre}
-                </button>
-              ))}
-            </div>
-          )}
+          {(() => {
+            const sedesVisibles = (role === "coordinador_hse" && sedeId)
+              ? sedes.filter(s => s.id === sedeId)
+              : sedes;
+            return sedesVisibles.length === 0 ? (
+              <p className="text-xs text-gray-600">
+                Crea al menos una sede en <button onClick={() => navigate("/sedes")} className="text-blue-400 hover:underline">Gestión de Sedes</button> para generar códigos QR de Modo Emergencia Móvil.
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">📱 QR Modo Emergencia:</span>
+                {sedesVisibles.map(s => (
+                  <button key={s.id} onClick={() => setSedeQR(s)}
+                    className="text-xs bg-gray-900 border border-gray-700 hover:border-red-500 text-gray-300 px-3 py-1.5 rounded transition-colors">
+                    {s.nombre}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -476,7 +490,7 @@ export default function EscenariosEmergenciaPage() {
         {/* ── PESTAÑA: ESCENARIOS ─────────────────────────────────────── */}
         {!loading && !error && tab === "escenarios" && (
           <>
-            {escenarios.length === 0 && (
+            {escenariosVisibles.length === 0 && (
               <div className="text-center py-16 text-gray-600 text-sm">
                 No hay escenarios de emergencia registrados todavía.
               </div>

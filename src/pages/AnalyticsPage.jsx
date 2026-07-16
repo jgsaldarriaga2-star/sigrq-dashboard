@@ -87,7 +87,7 @@ const [sustancias, setSustancias] = useState([]);
       const q = query(collection(db, "empresas", empresaId, "sustancias"), orderBy("creadoEn", "desc"));
       const snap = await getDocs(q);
       let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (role === "operario" && sedeId) {
+      if ((role === "operario" || role === "coordinador_hse") && sedeId) {
         docs = docs.filter(s => s.uso?.sedeId === sedeId);
       }
       setSustancias(docs);

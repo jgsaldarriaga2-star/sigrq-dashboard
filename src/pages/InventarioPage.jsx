@@ -110,7 +110,10 @@ export default function InventarioPage() {
 }, [user, role]);
 
 const [sedes, setSedes] = useState([]);
-const [filtroSede, setFiltroSede] = useState("todas");
+// coordinador_hse arranca con su propia sede pre-seleccionada (igual que
+// operario ve solo su sede), pero a diferencia de operario puede cambiarla
+// desde el selector — sigue siendo un filtro normal, no una restricción fija.
+const [filtroSede, setFiltroSede] = useState(() => (role === "coordinador_hse" && sedeId) ? sedeId : "todas");
 
 useEffect(() => {
   if (!empresaId) return;
@@ -199,16 +202,19 @@ if (role === "operario" && sedeId) {
   // ─── Stats rápidas ────────────────────────────────────────────────────────
 
   const stats = useMemo(() => {
-  const lista = role === "operario" && sedeId
-    ? sustancias.filter(s => s.uso?.sedeId === sedeId)
-    : sustancias;
+  let lista = sustancias;
+  if (role === "operario" && sedeId) {
+    lista = sustancias.filter(s => s.uso?.sedeId === sedeId);
+  } else if (filtroSede !== "todas") {
+    lista = sustancias.filter(s => s.uso?.sedeId === filtroSede);
+  }
   const casList = [...new Set(lista.map(s => s.evaluacion?.cas ?? s.fds?.numero_cas).filter(Boolean))];
   const total   = casList.length || lista.length;
   const muyAlto = lista.filter(s => nivelGlobal(s) === 4).length;
   const alto    = lista.filter(s => nivelGlobal(s) === 3).length;
   const asesor  = lista.filter(s => (s.evaluacion?.requiere_asesor ?? s.requiere_asesor) && !s.gestion?.asesor_consultado).length;
   return { total, muyAlto, alto, asesor };
-}, [sustancias, role, sedeId]);
+}, [sustancias, role, sedeId, filtroSede]);
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
