@@ -18,8 +18,15 @@ import app, { db } from "../services/firebase";
 import { useNavigate } from "react-router-dom";
 import {
   Building2, Plus, CheckCircle2, XCircle,
-  ChevronLeft, Loader2, RefreshCw, Eye, EyeOff
+  ChevronLeft, Loader2, RefreshCw, Eye, EyeOff, Users
 } from "lucide-react";
+
+const ROL_LABEL = { admin: "Admin", coordinador_hse: "Coordinador HSE", operario: "Operario" };
+const ROL_COLOR = {
+  admin:           "bg-purple-900 text-purple-300",
+  coordinador_hse: "bg-blue-900 text-blue-300",
+  operario:        "bg-gray-800 text-gray-400",
+};
 
 const functions = getFunctions(app, "us-central1");
 const crearEmpresaFn = httpsCallable(functions, "crearEmpresa");
@@ -35,6 +42,11 @@ export default function SuperAdminPage() {
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Usuarios y sedes por empresa (una sola lectura, reutilizada para la
+  // columna de email del admin y para el modal "Ver usuarios").
+  const [usuariosPorEmpresa, setUsuariosPorEmpresa] = useState({});
+  const [sedesPorEmpresa, setSedesPorEmpresa] = useState({});
+  const [modalUsuarios, setModalUsuarios] = useState(null); // empresa seleccionada
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(FORM_DEFAULTS);
   const [creando, setCreando] = useState(false);
@@ -50,11 +62,47 @@ export default function SuperAdminPage() {
       const snap = await getDocs(q);
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setEmpresas(docs);
+
+      // Usuarios + sedes de cada empresa, en paralelo — una sola lectura que
+      // alimenta tanto la columna "Admin" (Mejora 2) como el modal "Ver
+      // usuarios" (Mejora 1), sin repetir la consulta de usuarios dos veces.
+      const resultados = await Promise.all(
+        docs.map(async (empresa) => {
+          const [snapUsuarios, snapSedes] = await Promise.all([
+            getDocs(collection(db, "empresas", empresa.id, "usuarios")),
+            getDocs(collection(db, "empresas", empresa.id, "sedes")),
+          ]);
+          return {
+            empresaId: empresa.id,
+            usuarios: snapUsuarios.docs.map(d => ({ id: d.id, ...d.data() })),
+            sedes: snapSedes.docs.map(d => ({ id: d.id, ...d.data() })),
+          };
+        })
+      );
+
+      const usuariosMap = {};
+      const sedesMap = {};
+      for (const r of resultados) {
+        usuariosMap[r.empresaId] = r.usuarios;
+        sedesMap[r.empresaId] = r.sedes;
+      }
+      setUsuariosPorEmpresa(usuariosMap);
+      setSedesPorEmpresa(sedesMap);
     } catch (err) {
       setError("No se pudieron cargar las empresas: " + err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  function adminEmailDe(empresaId) {
+    const usuarios = usuariosPorEmpresa[empresaId] || [];
+    return usuarios.find(u => u.role === "admin")?.email || null;
+  }
+
+  function nombreSedeDe(empresaId, sedeId) {
+    if (!sedeId) return null;
+    return (sedesPorEmpresa[empresaId] || []).find(s => s.id === sedeId)?.nombre || null;
   }
 
   useEffect(() => { cargarEmpresas(); }, []);
@@ -329,22 +377,23 @@ export default function SuperAdminPage() {
 
           {!loading && !error && (
             <div className="rounded-lg border border-gray-800 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-900 text-gray-400 text-xs uppercase tracking-wider">
                     <th className="px-4 py-3 text-left">Empresa</th>
+                    <th className="px-4 py-3 text-left">Admin</th>
                     <th className="px-4 py-3 text-left">NIT</th>
                     <th className="px-4 py-3 text-left">Ciudad</th>
-                    <th className="px-4 py-3 text-left">ID Firestore</th>
                     <th className="px-4 py-3 text-center">Plan</th>
                     <th className="px-4 py-3 text-center">Estado</th>
-                    <th className="px-4 py-3 text-center">Acción</th>
+                    <th className="px-4 py-3 text-center whitespace-nowrap">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {empresas.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="text-center py-12 text-gray-600">
+                      <td colSpan={7} className="text-center py-12 text-gray-600">
                         No hay empresas registradas.
                       </td>
                     </tr>
@@ -352,9 +401,9 @@ export default function SuperAdminPage() {
                   {empresas.map(e => (
                     <tr key={e.id} className="bg-gray-950 hover:bg-gray-900 transition-colors">
                       <td className="px-4 py-3 font-semibold text-gray-100">{e.nombre}</td>
+                      <td className="px-4 py-3 text-gray-400 text-xs">{adminEmailDe(e.id) || "—"}</td>
                       <td className="px-4 py-3 text-gray-400">{e.nit || "—"}</td>
                       <td className="px-4 py-3 text-gray-400">{e.ciudad || "—"}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs font-mono">{e.id}</td>
                       <td className="px-4 py-3 text-center">
                         <button onClick={() => abrirModalPlan(e)}
                           className="text-xs font-bold px-2 py-1 rounded border border-blue-700 text-blue-400 hover:bg-blue-900 transition-colors">
@@ -371,11 +420,17 @@ export default function SuperAdminPage() {
                             </span>
                         }
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex gap-2 justify-center">
                           <button
+                            onClick={() => setModalUsuarios(e)}
+                            className="flex-shrink-0 whitespace-nowrap text-xs font-bold px-3 py-1 rounded transition-colors text-gray-400 hover:text-gray-200 border border-gray-700 hover:border-gray-500 flex items-center gap-1"
+                          >
+                            <Users className="h-3.5 w-3.5 flex-shrink-0" /> Ver usuarios
+                          </button>
+                          <button
                             onClick={() => toggleActiva(e)}
-                            className={`text-xs font-bold px-3 py-1 rounded transition-colors ${
+                            className={`flex-shrink-0 whitespace-nowrap text-xs font-bold px-3 py-1 rounded transition-colors ${
                               e.activa
                                 ? "text-red-400 hover:text-red-300 border border-red-800 hover:border-red-600"
                                 : "text-green-400 hover:text-green-300 border border-green-800 hover:border-green-600"
@@ -385,7 +440,7 @@ export default function SuperAdminPage() {
                           </button>
                           <button
                             onClick={() => setConfirmEliminar(e)}
-                            className="text-xs font-bold px-3 py-1 rounded transition-colors text-gray-500 hover:text-red-400 border border-gray-700 hover:border-red-800"
+                            className="flex-shrink-0 whitespace-nowrap text-xs font-bold px-3 py-1 rounded transition-colors text-gray-500 hover:text-red-400 border border-gray-700 hover:border-red-800"
                           >
                             Eliminar
                           </button>
@@ -395,6 +450,7 @@ export default function SuperAdminPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
               <div className="bg-gray-900 border-t border-gray-800 px-4 py-2 text-gray-600 text-xs">
                 {empresas.length} empresa{empresas.length !== 1 ? "s" : ""}
               </div>
@@ -461,6 +517,61 @@ export default function SuperAdminPage() {
                 Eliminar definitivamente
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: usuarios de la empresa (Mejora 1) */}
+      {modalUsuarios && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-gray-100 text-lg flex items-center gap-2">
+                  <Users className="h-5 w-5 text-blue-400" /> Usuarios
+                </h2>
+                <p className="text-sm text-gray-400">{modalUsuarios.nombre}</p>
+                <p className="text-xs text-gray-600 font-mono mt-0.5">ID: {modalUsuarios.id}</p>
+              </div>
+              <button onClick={() => setModalUsuarios(null)} className="text-gray-500 hover:text-gray-300">✕</button>
+            </div>
+
+            {(() => {
+              const usuarios = usuariosPorEmpresa[modalUsuarios.id] || [];
+              if (usuarios.length === 0) {
+                return <p className="text-sm text-gray-500 py-6 text-center">Esta empresa no tiene usuarios registrados.</p>;
+              }
+              return (
+                <div className="rounded-lg border border-gray-800 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-950 text-gray-400 text-xs uppercase tracking-wider">
+                        <th className="px-3 py-2 text-left">Nombre</th>
+                        <th className="px-3 py-2 text-left">Correo</th>
+                        <th className="px-3 py-2 text-left">Rol</th>
+                        <th className="px-3 py-2 text-left">Sede</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800">
+                      {usuarios.map(u => (
+                        <tr key={u.id}>
+                          <td className="px-3 py-2 font-medium text-gray-100">{u.nombre || "—"}</td>
+                          <td className="px-3 py-2 text-gray-400">{u.email || "—"}</td>
+                          <td className="px-3 py-2">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded ${ROL_COLOR[u.role] || "bg-gray-800 text-gray-400"}`}>
+                              {ROL_LABEL[u.role] || u.role || "—"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-400 text-xs">
+                            {nombreSedeDe(modalUsuarios.id, u.sedeId) || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

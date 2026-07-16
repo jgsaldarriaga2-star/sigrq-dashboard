@@ -3,6 +3,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "../services/firebase";
 import { useNavigate } from "react-router-dom";
 import PanelPrioridadesSede from "../components/PanelPrioridadesSede";
+import PanelOnboarding from "../components/PanelOnboarding";
 
 export default function DashboardPage() {
   const { user, role } = useAuth();
@@ -36,6 +37,9 @@ export default function DashboardPage() {
             Cerrar sesión
           </button>
         </div>
+
+        {/* Guía de onboarding — solo admin, solo mientras falten pasos */}
+        {esAdmin && <PanelOnboarding />}
 
         {/* Panel de Prioridades por Sede — admin, coordinador_hse (no superadmin) */}
         {(esAdmin || esCoordinador) && <PanelPrioridadesSede />}
