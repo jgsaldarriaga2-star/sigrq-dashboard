@@ -76,8 +76,11 @@ function AppRoutes() {
           </RolGuard>
         </PrivateRoute>
       } />
-      {/* Pública — sin PrivateRoute. Acceso vía QR o enlace compartido, sin login. */}
+      {/* Pública — sin PrivateRoute. Acceso vía QR o enlace compartido, sin login.
+          La variante con :areaId es la que generan los QR nuevos (por área);
+          la variante sin :areaId se conserva para QR de sede ya impresos. */}
       <Route path="/emergencia/:empresaId/:sedeId" element={<ModoEmergenciaPage />} />
+      <Route path="/emergencia/:empresaId/:sedeId/:areaId" element={<ModoEmergenciaPage />} />
 
     </Routes>
   );

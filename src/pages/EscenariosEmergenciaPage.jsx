@@ -85,8 +85,8 @@ export default function EscenariosEmergenciaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ── Modo Emergencia Móvil: QR por sede ───────────────────────────────
-  const [sedeQR, setSedeQR] = useState(null);
+  // ── Modo Emergencia Móvil: QR por área ───────────────────────────────
+  const [qrObjetivo, setQrObjetivo] = useState(null); // { sede, area } | null
 
   // ── Escenarios: flujo de creación ────────────────────────────────────
   const [mostrarCrear, setMostrarCrear] = useState(false);
@@ -407,12 +407,19 @@ export default function EscenariosEmergenciaPage() {
   }
   const btn = botonAgregar();
 
-  // Modo Emergencia Móvil: URL pública por sede (sin login). El nombre de
-  // empresa/sede va como query param para no tener que abrir a lectura
-  // pública los documentos empresas/sedes (que traen más datos, como NIT).
-  function urlEmergencia(sede) {
-    const params = new URLSearchParams({ empresa: empresaNombre || "", sede: sede.nombre || "" });
-    return `${window.location.origin}/emergencia/${empresaId}/${sede.id}?${params.toString()}`;
+  // Modo Emergencia Móvil: URL pública por área (sin login). Los nombres de
+  // empresa/sede/área van como query params para no tener que abrir a
+  // lectura pública los documentos empresas/sedes/areas (que traen más
+  // datos, como NIT) — ModoEmergenciaPage cruza por nombre de área contra
+  // uso.area, igual que el resto del proyecto hace con sustanciasDelArea().
+  function urlEmergencia(sede, area) {
+    const params = new URLSearchParams({
+      empresa: empresaNombre || "",
+      sede: sede.nombre || "",
+      area: area?.nombre || "",
+    });
+    const base = `${window.location.origin}/emergencia/${empresaId}/${sede.id}`;
+    return area ? `${base}/${area.id}?${params.toString()}` : `${base}?${params.toString()}`;
   }
 
   return (
@@ -456,8 +463,9 @@ export default function EscenariosEmergenciaPage() {
         </div>
       </div>
 
-      {/* Modo Emergencia Móvil — QR por sede, visible en cualquier pestaña.
-          coordinador_hse con sede asignada solo ve el botón de su sede. */}
+      {/* Modo Emergencia Móvil — un QR por área, agrupados por sede, visible
+          en cualquier pestaña. coordinador_hse con sede asignada solo ve
+          las áreas de su sede. */}
       {!loading && !error && (
         <div className="print:hidden max-w-4xl mx-auto px-6 pt-6">
           {(() => {
@@ -469,14 +477,28 @@ export default function EscenariosEmergenciaPage() {
                 Crea al menos una sede en <button onClick={() => navigate("/sedes")} className="text-blue-400 hover:underline">Gestión de Sedes</button> para generar códigos QR de Modo Emergencia Móvil.
               </p>
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-gray-500 uppercase tracking-wide">📱 QR Modo Emergencia:</span>
-                {sedesVisibles.map(s => (
-                  <button key={s.id} onClick={() => setSedeQR(s)}
-                    className="text-xs bg-gray-900 border border-gray-700 hover:border-red-500 text-gray-300 px-3 py-1.5 rounded transition-colors">
-                    {s.nombre}
-                  </button>
-                ))}
+              <div className="space-y-2">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">📱 QR Modo Emergencia por área:</span>
+                {sedesVisibles.map(sede => {
+                  const areasDeSede = areas.filter(a => a.sedeId === sede.id);
+                  return (
+                    <div key={sede.id} className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-gray-400 font-semibold whitespace-nowrap">{sede.nombre}:</span>
+                      {areasDeSede.length === 0 ? (
+                        <span className="text-xs text-gray-600">
+                          Sin áreas — <button onClick={() => navigate("/areas")} className="text-blue-400 hover:underline">créalas aquí</button>
+                        </span>
+                      ) : (
+                        areasDeSede.map(area => (
+                          <button key={area.id} onClick={() => setQrObjetivo({ sede, area })}
+                            className="text-xs bg-gray-900 border border-gray-700 hover:border-red-500 text-gray-300 px-3 py-1.5 rounded transition-colors">
+                            {area.nombre}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })()}
@@ -832,24 +854,24 @@ export default function EscenariosEmergenciaPage() {
       )}
 
       {/* Modal: QR Modo Emergencia Móvil */}
-      {sedeQR && (
+      {qrObjetivo && (
         <div className="qr-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full text-center">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-gray-900 font-bold text-left">QR de Emergencia</h2>
-              <button onClick={() => setSedeQR(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <button onClick={() => setQrObjetivo(null)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">{sedeQR.nombre}</p>
+            <p className="text-sm text-gray-600 mb-4">{qrObjetivo.area.nombre} — {qrObjetivo.sede.nombre}</p>
             <p className="text-xs text-gray-500 mb-4">
               Imprime y pega este código en el área física. Cualquiera puede escanearlo y ver la información de
-              emergencia de esta sede sin necesidad de iniciar sesión.
+              emergencia de esta área sin necesidad de iniciar sesión.
             </p>
             <div className="flex justify-center mb-4 bg-white p-3 border border-gray-200 rounded-lg inline-block">
-              <QRCodeSVG value={urlEmergencia(sedeQR)} size={200} />
+              <QRCodeSVG value={urlEmergencia(qrObjetivo.sede, qrObjetivo.area)} size={200} />
             </div>
-            <p className="text-[10px] text-gray-400 break-all mb-4">{urlEmergencia(sedeQR)}</p>
+            <p className="text-[10px] text-gray-400 break-all mb-4">{urlEmergencia(qrObjetivo.sede, qrObjetivo.area)}</p>
             <div className="flex gap-2 justify-center">
-              <button onClick={() => navigator.clipboard.writeText(urlEmergencia(sedeQR))}
+              <button onClick={() => navigator.clipboard.writeText(urlEmergencia(qrObjetivo.sede, qrObjetivo.area))}
                 className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded transition-colors">
                 Copiar enlace
               </button>
@@ -875,7 +897,7 @@ export default function EscenariosEmergenciaPage() {
             }
             .escenario-card.imprimir-activo * { color: #111 !important; }
           ` : ""}
-          ${sedeQR ? `
+          ${qrObjetivo ? `
             main { display: none !important; }
             .qr-modal-overlay {
               position: static !important;

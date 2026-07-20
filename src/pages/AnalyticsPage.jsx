@@ -74,23 +74,55 @@ function TooltipPie({ active, payload }) {
   );
 }
 
+// ─── Tick personalizado del eje X — área arriba, sede debajo ─────
+// Recharts clona este elemento e inyecta x/y/payload/index; el prop `data`
+// (el mismo array dataAreas) se preserva para poder leer el campo "sede"
+// de esa misma fila, ya que el payload del tick solo trae el valor de
+// dataKey ("area"), no el resto de campos de la fila.
+function CustomXAxisTick({ x, y, payload, index, data }) {
+  const fila = data?.[index];
+  const area = payload?.value ?? fila?.area ?? "";
+  const sede = fila?.sede;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={0} dy={12} textAnchor="middle" fontSize={11} fill="#374151">
+        {area}
+      </text>
+      {sede && (
+        <text x={0} y={0} dy={26} textAnchor="middle" fontSize={9} fill="#9ca3af">
+          {sede}
+        </text>
+      )}
+    </g>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────
 export default function AnalyticsPage() {
   const navigate = useNavigate();
 const { empresaId, role, sedeId } = useAuth();
 const [loading, setLoading] = useState(true);
 const [sustancias, setSustancias] = useState([]);
+const [sedes, setSedes] = useState([]);
+
+  // admin/superadmin ven todas las sedes a la vez, así que un área con el
+  // mismo nombre en dos sedes distintas ("Lavado" en Sede A y en Sede B) se
+  // mezclaría en una sola barra si solo se agrupara por nombre de área.
+  const mostrarSedeEnGrafico = role === "admin" || role === "superadmin";
 
   useEffect(() => {
   async function cargar() {
     try {
-      const q = query(collection(db, "empresas", empresaId, "sustancias"), orderBy("creadoEn", "desc"));
-      const snap = await getDocs(q);
-      let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const [snapSustancias, snapSedes] = await Promise.all([
+        getDocs(query(collection(db, "empresas", empresaId, "sustancias"), orderBy("creadoEn", "desc"))),
+        getDocs(collection(db, "empresas", empresaId, "sedes")),
+      ]);
+      let docs = snapSustancias.docs.map(d => ({ id: d.id, ...d.data() }));
       if ((role === "operario" || role === "coordinador_hse") && sedeId) {
         docs = docs.filter(s => s.uso?.sedeId === sedeId);
       }
       setSustancias(docs);
+      setSedes(snapSedes.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (err) {
         console.error("Error cargando analytics:", err);
       } finally {
@@ -125,18 +157,31 @@ const [sustancias, setSustancias] = useState([]);
     .map(([k, v]) => ({ name: COLOR_NIVEL[k].label, value: v, hex: COLOR_NIVEL[k].hex }));
 
   // ── Datos gráfica barras — riesgo por área ─────────────────────
+  // Para admin/superadmin se agrupa por área + sede (para no mezclar áreas
+  // homónimas de sedes distintas, ej. "Lavado" en Sede A y en Sede B);
+  // coordinador_hse/operario ya están filtrados a una sola sede, así que
+  // agrupan solo por nombre de área, igual que antes. area y sede se
+  // guardan como campos separados (no concatenados en un string) para que
+  // CustomXAxisTick pueda dibujarlos en dos líneas independientes.
   const porArea = {};
   sustancias.forEach(s => {
     const area = s.evaluacion?.area;
     if (!area) return;
-    if (!porArea[area]) porArea[area] = { nivelMax: 0, total: 0, asesores: 0 };
+    const sedeNombre = mostrarSedeEnGrafico
+      ? sedes.find(sd => sd.id === s.uso?.sedeId)?.nombre || null
+      : null;
+    // Separador interno solo para agrupar — nunca se muestra.
+    const key = sedeNombre ? `${area}|||${sedeNombre}` : area;
+    if (!porArea[key]) porArea[key] = { nivelMax: 0, total: 0, asesores: 0, area, sedeNombre };
     const n = s.evaluacion?.inhalacion?.nivel || 0;
-    porArea[area].nivelMax = Math.max(porArea[area].nivelMax, n);
-    porArea[area].total++;
-    if (s.evaluacion?.requiere_asesor && !s.gestion?.asesor_consultado) porArea[area].asesores++;
+    porArea[key].nivelMax = Math.max(porArea[key].nivelMax, n);
+    porArea[key].total++;
+    if (s.evaluacion?.requiere_asesor && !s.gestion?.asesor_consultado) porArea[key].asesores++;
   });
-  const dataAreas = Object.entries(porArea).map(([area, d]) => ({
-    area: area.length > 14 ? area.slice(0, 14) + "…" : area,
+  const truncar = (texto, max) => (texto && texto.length > max ? texto.slice(0, max - 1) + "…" : texto);
+  const dataAreas = Object.values(porArea).map(d => ({
+    area: truncar(d.area, 18),
+    sede: truncar(d.sedeNombre, 18),
     "Nivel máx.": d.nivelMax,
     Evaluaciones: d.total,
   }));
@@ -261,10 +306,15 @@ const [sustancias, setSustancias] = useState([]);
               <div className="bg-white rounded-2xl shadow-sm p-5">
                 <h2 className="font-semibold text-gray-700 mb-4">Evaluaciones por área</h2>
                 {dataAreas.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={dataAreas} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                  <ResponsiveContainer width="100%" height={270}>
+                    <BarChart data={dataAreas} margin={{ top: 5, right: 10, left: -20, bottom: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis dataKey="area" tick={{ fontSize: 11 }} />
+                      <XAxis
+                        dataKey="area"
+                        height={mostrarSedeEnGrafico ? 50 : 35}
+                        interval={0}
+                        tick={<CustomXAxisTick data={dataAreas} />}
+                      />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                       <Tooltip />
                       <Legend wrapperStyle={{ fontSize: 12 }} />

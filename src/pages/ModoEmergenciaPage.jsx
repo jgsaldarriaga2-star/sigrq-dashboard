@@ -3,7 +3,15 @@
 // Modo Emergencia Móvil — vista pública de solo lectura pensada para
 // abrirse desde un código QR pegado en el área física o un enlace
 // compartido por el coordinador HSE, sin necesidad de iniciar sesión.
-// Ruta: /emergencia/:empresaId/:sedeId (fuera de PrivateRoute).
+// Ruta: /emergencia/:empresaId/:sedeId(/:areaId) (fuera de PrivateRoute).
+//
+// El :areaId en la ruta es solo un identificador legible — el filtrado real
+// por área usa el nombre de área que llega en el query param ?area=, igual
+// que ?empresa=/?sede= para los nombres de empresa/sede. Esto evita abrir la
+// colección "areas" a lectura pública (las sustancias no guardan areaId,
+// solo uso.area con el nombre, así que hace falta el nombre para cruzar).
+// Si la URL no trae área (QR de sede ya impreso, formato anterior), se
+// muestra toda la sede sin filtrar por área — compatibilidad hacia atrás.
 //
 // Reutiliza derivarEmergencias (utils/emergencia.js) para el tipo de
 // emergencia probable por sustancia, y los mismos TIPO_ICONO/
@@ -28,10 +36,11 @@ const CISPROQUIM = "01 8000 916012";
 const EMERGENCIA_NACIONAL = "123";
 
 export default function ModoEmergenciaPage() {
-  const { empresaId, sedeId } = useParams();
+  const { empresaId, sedeId, areaId } = useParams();
   const [searchParams] = useSearchParams();
   const nombreEmpresa = searchParams.get("empresa") || "Emergencia Química";
   const nombreSede = searchParams.get("sede") || "";
+  const nombreArea = areaId ? (searchParams.get("area") || "") : "";
 
   const [sustancias, setSustancias] = useState([]);
   const [escenarios, setEscenarios] = useState([]);
@@ -54,11 +63,14 @@ export default function ModoEmergenciaPage() {
         ]);
 
         // Dedup por CAS, igual que DetalleSustanciaPage/FichaEmergenciaPage.
+        // Si la URL trae área (nombreArea), además de la sede se filtra por
+        // uso.area — las sustancias no guardan areaId, solo el nombre.
         const vistos = new Set();
         const listaSustancias = [];
         for (const d of snapSustancias.docs) {
           const s = { id: d.id, ...d.data() };
           if ((s.uso?.sedeId || null) !== sedeId) continue;
+          if (nombreArea && (s.uso?.area || null) !== nombreArea) continue;
           const cas = s.fds?.numero_cas || s.evaluacion?.cas || s.id;
           if (vistos.has(cas)) continue;
           vistos.add(cas);
@@ -70,6 +82,7 @@ export default function ModoEmergenciaPage() {
           snapEscenarios.docs
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(e => (e.sedeId || null) === sedeId)
+            .filter(e => !nombreArea || e.areaNombre === nombreArea)
         );
 
         // Contactos de la sede + contactos de toda la empresa (sedeId null).
@@ -86,7 +99,7 @@ export default function ModoEmergenciaPage() {
       }
     }
     cargar();
-  }, [empresaId, sedeId]);
+  }, [empresaId, sedeId, nombreArea]);
 
   const termino = busqueda.trim().toLowerCase();
 
@@ -113,7 +126,11 @@ export default function ModoEmergenciaPage() {
         <header className="bg-red-600 text-white px-4 py-4">
           <p className="text-[11px] uppercase tracking-widest opacity-80">⚠ Modo Emergencia</p>
           <h1 className="text-xl font-bold leading-tight">{nombreEmpresa}</h1>
-          {nombreSede && <p className="text-sm opacity-90">{nombreSede}</p>}
+          {nombreSede && (
+            <p className="text-sm opacity-90">
+              {nombreSede}{nombreArea ? ` — ${nombreArea}` : ""}
+            </p>
+          )}
         </header>
         <div className="px-4 py-3 bg-white border-b border-gray-200">
           <input
