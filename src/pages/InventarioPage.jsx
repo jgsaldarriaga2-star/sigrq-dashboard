@@ -27,10 +27,20 @@ function nivelInhalacion(sustancia) {
   return typeof n === "string" ? (NIVEL_STR[n.toLowerCase()] ?? 0) : (n ?? 0);
 }
 
+function inhalacionNoAplica(sustancia) {
+  const ev = sustancia?.evaluacion ?? sustancia;
+  return ev?.inhalacion === null || ev?.inhalacion === "no_aplica";
+}
+
 function nivelPiel(sustancia) {
   const ev = sustancia?.evaluacion ?? sustancia;
   const n = ev?.piel?.nivel ?? ev?.resultado?.piel?.nivel ?? 0;
   return typeof n === "string" ? (NIVEL_STR[n.toLowerCase()] ?? 0) : (n ?? 0);
+}
+
+function pielNoAplica(sustancia) {
+  const ev = sustancia?.evaluacion ?? sustancia;
+  return ev?.piel === null || ev?.piel === "no_aplica";
 }
 
 function nivelGlobal(sustancia) {
@@ -376,19 +386,27 @@ if (role === "operario" && sedeId) {
 
                     {/* Inhalación */}
                     <td className="px-4 py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <Badge nivel={nivelInhalacion(s)} />
-                        {(s?.resultado?.inhalacion?.hg ?? s?.riesgo_inhalacion?.hg) && (
-                          <span className="text-gray-600 text-xs">
-                            {s?.resultado?.inhalacion?.hg ?? s?.riesgo_inhalacion?.hg}
-                          </span>
-                        )}
-                      </div>
+                      {inhalacionNoAplica(s) ? (
+                        <span className="text-gray-500 text-xs font-semibold">N/A</span>
+                      ) : (
+                        <div className="flex flex-col gap-0.5">
+                          <Badge nivel={nivelInhalacion(s)} />
+                          {(s?.resultado?.inhalacion?.hg ?? s?.riesgo_inhalacion?.hg) && (
+                            <span className="text-gray-600 text-xs">
+                              {s?.resultado?.inhalacion?.hg ?? s?.riesgo_inhalacion?.hg}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     {/* Piel */}
                     <td className="px-4 py-3">
-                      <Badge nivel={nivelPiel(s)} />
+                      {pielNoAplica(s) ? (
+                        <span className="text-gray-500 text-xs font-semibold">N/A</span>
+                      ) : (
+                        <Badge nivel={nivelPiel(s)} />
+                      )}
                     </td>
 
                     {/* Asesor requerido */}

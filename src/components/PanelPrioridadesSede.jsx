@@ -41,23 +41,35 @@ function nivelInhalacion(s) {
   const n = ev?.inhalacion?.nivel ?? 0;
   return typeof n === "string" ? (NIVEL_STR[n.toLowerCase()] ?? 0) : (n ?? 0);
 }
+function inhalacionNoAplica(s) {
+  const ev = s?.evaluacion ?? s;
+  return ev?.inhalacion === null || ev?.inhalacion === "no_aplica";
+}
 function nivelPiel(s) {
   const ev = s?.evaluacion ?? s;
   const n = ev?.piel?.nivel ?? 0;
   return typeof n === "string" ? (NIVEL_STR[n.toLowerCase()] ?? 0) : (n ?? 0);
 }
+function pielNoAplica(s) {
+  const ev = s?.evaluacion ?? s;
+  return ev?.piel === null || ev?.piel === "no_aplica";
+}
 function nivelGlobal(s) {
   return Math.max(nivelInhalacion(s), nivelPiel(s));
 }
 
-function Badge({ label, nivel }) {
+function Badge({ label, nivel, na }) {
   const cfg = NIVELES[nivel] ?? NIVELES[0];
   return (
     <div className="text-center">
       {label && <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">{label}</p>}
-      <span className={`inline-block px-2.5 py-1 rounded text-xs font-bold tracking-wide ${cfg.bg} ${cfg.text}`}>
-        {cfg.label}
-      </span>
+      {na ? (
+        <span className="inline-block px-2.5 py-1 text-xs font-bold tracking-wide text-gray-400">N/A</span>
+      ) : (
+        <span className={`inline-block px-2.5 py-1 rounded text-xs font-bold tracking-wide ${cfg.bg} ${cfg.text}`}>
+          {cfg.label}
+        </span>
+      )}
     </div>
   );
 }
@@ -220,8 +232,8 @@ export default function PanelPrioridadesSede() {
                           </div>
                           <div className="flex items-center gap-3">
                             <Badge label="Global" nivel={nivelGlobal(s)} />
-                            <Badge label="Inhalación" nivel={nivelInhalacion(s)} />
-                            <Badge label="Piel" nivel={nivelPiel(s)} />
+                            <Badge label="Inhalación" nivel={nivelInhalacion(s)} na={inhalacionNoAplica(s)} />
+                            <Badge label="Piel" nivel={nivelPiel(s)} na={pielNoAplica(s)} />
                           </div>
                           <button
                             onClick={() => navigate(`/sustancias/${s.id}/ficha-emergencia`)}

@@ -278,6 +278,11 @@ function SustanciaCard({ sustancia, expandido, onToggle }) {
             </div>
           )}
 
+          <p className="text-xs text-gray-600">
+            <span className="font-bold">Teléfono de emergencia:</span>{" "}
+            {fds.telefono_emergencia || CISPROQUIM}
+          </p>
+
           {emergencias.length === 0 && (
             <p className="text-xs text-gray-500">
               No se identificó un tipo de emergencia específico a partir de los pictogramas GHS. Consulte la FDS completa.

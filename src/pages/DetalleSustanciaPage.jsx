@@ -363,6 +363,8 @@ export default function DetalleSustanciaPage() {
   const fds = sustancia.fds ?? {};
   const uso = sustancia.uso ?? {};
   const nivelInhalacion = ev.inhalacion?.nivel ?? 0;
+  const inhalacionNA = ev.inhalacion === null || ev.inhalacion === undefined || ev.inhalacion === "no_aplica";
+  const pielNA = ev.piel === null || ev.piel === undefined || ev.piel === "no_aplica";
   const gruposAlmacenamiento = clasificarAlmacenamiento(fds).grupos;
   const estadoFds = estadoFDS(ev.fds_caducidad);
 
@@ -446,24 +448,36 @@ export default function DetalleSustanciaPage() {
         <div className="mb-8 print:mb-6">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200 pb-1 mb-3">Resumen Ejecutivo</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className={`rounded-xl p-4 text-center ${NIVEL_COLOR[nivelInhalacion] || "bg-gray-100 text-gray-600"}`}>
+            <div className={`rounded-xl p-4 text-center ${inhalacionNA ? "bg-gray-50 text-gray-400 border border-dashed border-gray-200" : (NIVEL_COLOR[nivelInhalacion] || "bg-gray-100 text-gray-600")}`}>
               <p className="text-xs font-bold uppercase tracking-wider mb-1 flex items-center justify-center gap-1.5">
                 Inhalación
                 <PictogramasFiltrados pictogramasGhs={fds.pictogramas_ghs} categoria="inhalacion" size={14} />
               </p>
-              <p className="text-xl font-bold">{NIVEL_LABEL[nivelInhalacion] ?? "N/E"}</p>
-              <p className="text-xs mt-1">HG: {ev.inhalacion?.hg ?? "—"}</p>
-              {ev.inhalacion?.nivelBase && ev.inhalacion.nivelBase !== nivelInhalacion && (
-                <p className="text-xs mt-0.5 opacity-70">Base: {NIVEL_LABEL[ev.inhalacion.nivelBase]}</p>
+              {inhalacionNA ? (
+                <p className="text-xl font-bold">N/A</p>
+              ) : (
+                <>
+                  <p className="text-xl font-bold">{NIVEL_LABEL[nivelInhalacion] ?? "N/E"}</p>
+                  <p className="text-xs mt-1">HG: {ev.inhalacion?.hg ?? "—"}</p>
+                  {ev.inhalacion?.nivelBase && ev.inhalacion.nivelBase !== nivelInhalacion && (
+                    <p className="text-xs mt-0.5 opacity-70">Base: {NIVEL_LABEL[ev.inhalacion.nivelBase]}</p>
+                  )}
+                </>
               )}
             </div>
-            <div className={`rounded-xl p-4 text-center ${PIEL_COLOR[ev.piel?.nivel] || "bg-gray-100 text-gray-600"}`}>
+            <div className={`rounded-xl p-4 text-center ${pielNA ? "bg-gray-50 text-gray-400 border border-dashed border-gray-200" : (PIEL_COLOR[ev.piel?.nivel] || "bg-gray-100 text-gray-600")}`}>
               <p className="text-xs font-bold uppercase tracking-wider mb-1 flex items-center justify-center gap-1.5">
                 Piel
                 <PictogramasFiltrados pictogramasGhs={fds.pictogramas_ghs} categoria="piel" size={14} />
               </p>
-              <p className="text-xl font-bold capitalize">{ev.piel?.nivel ?? "N/E"}</p>
-              <p className="text-xs mt-1">HG: {ev.piel?.hgPiel ?? "—"}</p>
+              {pielNA ? (
+                <p className="text-xl font-bold">N/A</p>
+              ) : (
+                <>
+                  <p className="text-xl font-bold capitalize">{ev.piel?.nivel ?? "N/E"}</p>
+                  <p className="text-xs mt-1">HG: {ev.piel?.hgPiel ?? "—"}</p>
+                </>
+              )}
             </div>
             <div className="bg-gray-100 rounded-xl p-4 text-center">
               <p className="text-xs font-bold uppercase tracking-wider mb-1 text-gray-600 flex items-center justify-center gap-1.5">
@@ -625,6 +639,30 @@ export default function DetalleSustanciaPage() {
           )}
         </Seccion>
 
+        {/* Clasificación GHS (Sección 2 FDS) */}
+        {fds.clasificacion_ghs?.length > 0 && (
+          <Seccion titulo="Clasificación GHS (Sección 2 FDS)">
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 py-2 text-left">Clase de peligro</th>
+                    <th className="px-3 py-2 text-left">Categoría</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {fds.clasificacion_ghs.map((c, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2 text-gray-800 font-medium">{c.clase || "—"}</td>
+                      <td className="px-3 py-2 text-gray-500">{c.categoria || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Seccion>
+        )}
+
         {/* Composición — solo mezclas con componentes extraídos de la FDS (sección 3) */}
         {fds.composicion?.es_mezcla && fds.composicion.componentes?.length > 0 && (
           <Seccion titulo="Composición (Sección 3 FDS)">
@@ -717,16 +755,28 @@ export default function DetalleSustanciaPage() {
           </span>
         }>
           <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-4">
-            <div className={`px-3 py-2 rounded-lg text-center min-w-24 ${NIVEL_COLOR[nivelInhalacion] || "bg-gray-100"}`}>
+            <div className={`px-3 py-2 rounded-lg text-center min-w-24 ${inhalacionNA ? "bg-gray-100 text-gray-400" : (NIVEL_COLOR[nivelInhalacion] || "bg-gray-100")}`}>
               <p className="text-xs font-bold">Nivel</p>
-              <p className="text-xl font-bold">{nivelInhalacion}</p>
-              <p className="text-xs">{NIVEL_LABEL[nivelInhalacion] ?? "N/E"}</p>
+              {inhalacionNA ? (
+                <p className="text-xl font-bold">N/A</p>
+              ) : (
+                <>
+                  <p className="text-xl font-bold">{nivelInhalacion}</p>
+                  <p className="text-xs">{NIVEL_LABEL[nivelInhalacion] ?? "N/E"}</p>
+                </>
+              )}
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-gray-700 mb-1">{ev.inhalacion?.descripcion}</p>
-              {ev.inhalacion?.advertencias?.length > 0 && ev.inhalacion.advertencias.map((a, i) => (
-                <p key={i} className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded mb-1">{a}</p>
-              ))}
+              {inhalacionNA ? (
+                <p className="text-sm text-gray-500">No aplica — duración y frecuencia de uso registradas como "No aplica".</p>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-gray-700 mb-1">{ev.inhalacion?.descripcion}</p>
+                  {ev.inhalacion?.advertencias?.length > 0 && ev.inhalacion.advertencias.map((a, i) => (
+                    <p key={i} className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded mb-1">{a}</p>
+                  ))}
+                </>
+              )}
             </div>
           </div>
         </Seccion>
@@ -740,12 +790,14 @@ export default function DetalleSustanciaPage() {
             </span>
           }>
             <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-start gap-4">
-              <div className={`px-3 py-2 rounded-lg text-center min-w-24 ${PIEL_COLOR[ev.piel?.nivel] || "bg-gray-100"}`}>
+              <div className={`px-3 py-2 rounded-lg text-center min-w-24 ${pielNA ? "bg-gray-100 text-gray-400" : (PIEL_COLOR[ev.piel?.nivel] || "bg-gray-100")}`}>
                 <p className="text-xs font-bold">Nivel</p>
-                <p className="text-xl font-bold capitalize">{ev.piel?.nivel ?? "—"}</p>
+                <p className="text-xl font-bold capitalize">{pielNA ? "N/A" : (ev.piel?.nivel ?? "—")}</p>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-700">{ev.piel?.descripcion}</p>
+                <p className="text-sm font-medium text-gray-700">
+                  {pielNA ? 'No aplica — duración y frecuencia de uso registradas como "No aplica".' : ev.piel?.descripcion}
+                </p>
               </div>
             </div>
           </Seccion>
@@ -939,6 +991,7 @@ export default function DetalleSustanciaPage() {
                     <option value="corta">Corta — menos de 30 min/día</option>
                     <option value="media">Media — entre 30 y 120 min/día</option>
                     <option value="larga">Larga — más de 120 min/día</option>
+                    <option value="no_aplica">No aplica</option>
                   </select>
                 </div>
                 <div>
@@ -951,6 +1004,7 @@ export default function DetalleSustanciaPage() {
                     <option value="semanal">Semanal — 2 a 3 veces por semana</option>
                     <option value="ocasional">Ocasional — menos de una vez por semana</option>
                     <option value="esporadica">Esporádica — pocas veces al año</option>
+                    <option value="no_aplica">No aplica</option>
                   </select>
                 </div>
                 <div>

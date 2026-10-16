@@ -63,6 +63,8 @@ const [campos, setCampos] = useState(camposVacios);
     composicion: null,
     transporte: null,
     toxicologia: null,
+    telefono_emergencia: null,
+    clasificacion_ghs: null,
   });
   const navigate = useNavigate();
 
@@ -195,6 +197,8 @@ setDatosExtendidosFDS({
   composicion:       data.composicion        ?? null,
   transporte:        data.transporte         ?? null,
   toxicologia:       data.toxicologia        ?? null,
+  telefono_emergencia: data.telefono_emergencia ?? null,
+  clasificacion_ghs:   data.clasificacion_ghs   ?? null,
 });
 
 // ── Pre-llenar nanomateriales si la IA detectó nano en la FDS ──────────
@@ -284,6 +288,8 @@ if (data.nano_ia?.contiene_nanomaterial) {
   composicion:             datosExtendidosFDS.composicion,
   transporte:              datosExtendidosFDS.transporte,
   toxicologia:             datosExtendidosFDS.toxicologia,
+  telefono_emergencia:     datosExtendidosFDS.telefono_emergencia,
+  clasificacion_ghs:       datosExtendidosFDS.clasificacion_ghs,
 },
  uso: {
   area:              campos.uso                    || null,
@@ -495,6 +501,7 @@ if (data.nano_ia?.contiene_nanomaterial) {
     <option value="corta">Corta — menos de 30 min/día</option>
     <option value="media">Media — entre 30 y 120 min/día</option>
     <option value="larga">Larga — más de 120 min/día</option>
+    <option value="no_aplica">No aplica</option>
   </select>
 </div>
 
@@ -511,6 +518,7 @@ if (data.nano_ia?.contiene_nanomaterial) {
     <option value="semanal">Semanal — 2 a 3 veces por semana</option>
     <option value="ocasional">Ocasional — menos de una vez por semana</option>
     <option value="esporadica">Esporádica — pocas veces al año</option>
+    <option value="no_aplica">No aplica</option>
   </select>
 </div>
           </div>

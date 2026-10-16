@@ -206,8 +206,10 @@ export default function FichaEmergenciaPage() {
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Contactos de Emergencia</h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-gray-900 text-white rounded-xl p-4 text-center">
-                <p className="text-xs uppercase tracking-wider opacity-80">CISPROQUIM Colombia</p>
-                <p className="text-2xl font-bold mt-1">{CISPROQUIM}</p>
+                <p className="text-xs uppercase tracking-wider opacity-80">
+                  {fds.telefono_emergencia ? "Emergencia del proveedor (FDS)" : "CISPROQUIM Colombia"}
+                </p>
+                <p className="text-2xl font-bold mt-1">{fds.telefono_emergencia || CISPROQUIM}</p>
               </div>
               <div className="bg-red-600 text-white rounded-xl p-4 text-center">
                 <p className="text-xs uppercase tracking-wider opacity-90">Emergencia nacional</p>
