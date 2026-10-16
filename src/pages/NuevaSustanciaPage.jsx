@@ -9,7 +9,7 @@ const EXTRAER_URL = "https://us-central1-gestionrq.cloudfunctions.net/extraerFDS
 const EVALUAR_URL = "https://us-central1-gestionrq.cloudfunctions.net/evaluarSustancia";
 
 const camposVacios = {
-  nombre: "", cas: "", fabricante: "", uso: "", areaId: "",
+  nombre: "", cas: "", fabricante: "", referencia_producto: "", uso: "", areaId: "",
   estado_fisico: "", presion_vapor_kPa: "", punto_ebullicion: "",
   vla_ppm: "", vla_mgm3: "", cantidad_uso: "",
   duracion_exposicion: "", frecuencia_uso: "",
@@ -260,6 +260,7 @@ if (data.nano_ia?.contiene_nanomaterial) {
   nombre_comercial:        campos.nombre              || null,
   nombre_quimico:          campos.nombre              || null,
   numero_cas:              casFinal                   || null,
+  referencia_producto:     campos.referencia_producto?.trim() || null,
   fds_fecha_emision:       campos.fds_fecha_emision   || null,
   estado_fisico:           campos.estado_fisico         || "liquido",
   presion_vapor_kpa:       parseFloat(campos.presion_vapor_kPa) || null,
@@ -390,6 +391,13 @@ if (data.nano_ia?.contiene_nanomaterial) {
               <Campo label="Número CAS" name="cas" value={campos.cas} onChange={handleCampo} />
             )}
             <Campo label="Fabricante" name="fabricante" value={campos.fabricante} onChange={handleCampo} />
+            <Campo
+              label="Referencia del producto (opcional)"
+              name="referencia_producto"
+              value={campos.referencia_producto}
+              onChange={handleCampo}
+              placeholder="Código o referencia interna"
+            />
             <div>
   <label className="block text-xs font-medium text-gray-600 mb-1">Área / Proceso</label>
   <select

@@ -429,6 +429,7 @@ export default function DetalleSustanciaPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 print:text-xl">{ev.sustancia ?? fds.nombre_comercial ?? "Sin nombre"}</h1>
           {ev.cas && <p className="text-sm text-gray-500 mt-1">{etiquetaCas(ev.cas, fds.tipo_producto)}: {ev.cas}</p>}
+          {fds.referencia_producto && <p className="text-sm text-gray-500 mt-1">Referencia del producto: {fds.referencia_producto}</p>}
           {estadoFds === "vencida" && (
             <div className="mt-3 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg">
               ⚠ FDS vencida desde {ev.fds_caducidad} — solicitar versión actualizada al proveedor

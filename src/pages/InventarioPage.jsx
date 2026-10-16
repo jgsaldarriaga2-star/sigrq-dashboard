@@ -141,12 +141,13 @@ if (role === "operario" && sedeId) {
   lista = lista.filter(s => s.uso?.sedeId === filtroSede);
 }
 
-    // Búsqueda por nombre o CAS
+    // Búsqueda por nombre, CAS, referencia o área
     if (busqueda.trim()) {
       const term = busqueda.toLowerCase();
       lista = lista.filter(s =>
         (s.evaluacion?.sustancia ?? s.nombre ?? "").toLowerCase().includes(term) ||
         (s.evaluacion?.cas ?? s.cas ?? "").toLowerCase().includes(term) ||
+        String(s.fds?.referencia_producto ?? "").toLowerCase().includes(term) ||
         (s.evaluacion?.area ?? s.uso?.area ?? s.area ?? "").toLowerCase().includes(term)
       );
     }
@@ -176,7 +177,7 @@ if (role === "operario" && sedeId) {
     });
 
     return lista;
-  }, [sustancias, busqueda, filtroNivel, sortField, sortDir]);
+  }, [sustancias, busqueda, filtroNivel, sortField, sortDir, role, sedeId, filtroSede]);
 
   function toggleSort(field) {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -261,7 +262,7 @@ if (role === "operario" && sedeId) {
         <div className="flex flex-wrap gap-3 items-center">
           <input
             type="text"
-            placeholder="Buscar por nombre, CAS o área…"
+            placeholder="Buscar por nombre, CAS, referencia o área…"
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             className="bg-gray-800 border border-gray-700 text-gray-100 placeholder-gray-500 rounded px-3 py-2 text-sm w-72 focus:outline-none focus:border-blue-500"
